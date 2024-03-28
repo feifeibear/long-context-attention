@@ -22,7 +22,7 @@ def all_to_all_4D(input : torch.tensor,
     all-to-all for QKV
 
     Args:
-        input (torch.tensor): a tensor sharded along dim 1 (bs, seqlen/P, hc, hs)
+        input (torch.tensor): a tensor sharded along dim scatter dim
         scatter_idx (int): default 1
         gather_idx (int): default 2
         group : torch process group
@@ -59,6 +59,7 @@ def all_to_all_4D(input : torch.tensor,
     elif scatter_idx == 1 and gather_idx == 2:
         # input (torch.tensor): a tensor sharded along dim 1 (bs, seqlen, hc/P, hs) output: (bs, seqlen/P, hc, hs)
         bs, seqlen, shard_hc, hs = input.shape
+        hc = shard_hc * seq_world_size
         shard_seqlen = seqlen // seq_world_size
         seq_world_size = dist.get_world_size(group)
             
@@ -66,7 +67,7 @@ def all_to_all_4D(input : torch.tensor,
         # (bs, seqlen, hc/P, hs) -reshape-> (bs, P, seq_len/P, hc/P, hs) -transpose(0, 3)-> (hc/P, P, seqlen/P, bs, hs) -transpose(0, 1) -> (P, hc/P, seqlen/P, bs, hs)
         input_t = input.reshape(
             bs, seq_world_size, shard_seqlen, shard_hc, hs
-        ).transpose(0, 3).transpose(0,1).continous().reshape(seq_world_size, shard_hc, shard_seqlen, bs, hs)
+        ).transpose(0, 3).transpose(0,1).contiguous().reshape(seq_world_size, shard_hc, shard_seqlen, bs, hs)
 
         output = torch.empty_like(input_t)
         # https://pytorch.org/docs/stable/distributed.html#torch.distributed.all_to_all_single
@@ -91,7 +92,7 @@ class _SeqAllToAll4D(torch.autograd.Function):
         ctx.scatter_idx = scatter_idx
         ctx.gather_idx = gather_idx
 
-        return all_to_all_4D(input, group=group)
+        return all_to_all_4D(input, scatter_idx, gather_idx, group=group)
 
     @staticmethod
     def backward(ctx: Any, *grad_output: Tensor) -> Tuple[None, Tensor, None, None]:
@@ -156,6 +157,7 @@ class DistributedAttention(torch.nn.Module):
         # scatter 1, gather 2
         output = _SeqAllToAll4D.apply(self.spg, context_layer, self.gather_idx, self.scatter_idx)
         
+        print(f"output shape {output.shape}")
         #out e.g., [s/p::h]
         return output
 

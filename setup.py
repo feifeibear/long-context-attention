@@ -8,5 +8,6 @@ setup(
     packages=find_packages(),
     install_requires=[
         'flash-attn==2.4.1',
+        'deepspeed==1.13.1'
     ],
 )

@@ -7,6 +7,8 @@ from ring_flash_attn import ring_flash_attn_qkvpacked_func
 from ds_ulysses_attn.ulysses_attn_layer import DistributedAttention
 from deepspeed import init_distributed
 
+from flash_attn import flash_attn_func
+
 def log(msg, a, rank0_only=False):
     world_size = dist.get_world_size()
     rank = dist.get_rank()
@@ -107,13 +109,13 @@ if __name__ == "__main__":
         
         return context_layer
     
-    attn = torch_attn
+    # attn = torch_attn
     # attn = ring_flash_attn_func
+    attn = flash_attn_func
     
     dist_attn = DistributedAttention(attn, sp_pg, scatter_idx=2, gather_idx=1)
-
     
-    o = dist_attn(local_q.reshape(batch_size, seqlen//world_size, nheads, d), 
+    ds_o = dist_attn(local_q.reshape(batch_size, seqlen//world_size, nheads, d), 
                   local_k.reshape(batch_size, seqlen//world_size, nheads, d), 
                   local_v.reshape(batch_size, seqlen//world_size, nheads, d))
 
@@ -122,4 +124,23 @@ if __name__ == "__main__":
         print("#" * 30)
         print("# forward:")
         print("#" * 30)
+
+    # reference, a local flash attn
+    out, lse, _ = flash_attn_func(
+        q, k, v,
+        dropout_p=dropout_p,
+        causal=causal,
+        window_size=(-1, -1),
+        alibi_slopes=None,
+        deterministic=deterministic,
+        return_attn_probs=True,
+    )
+
+    print(f"ds_o {ds_o.shape}")
+    local_out = out.chunk(world_size, dim=1)[rank]
+    local_lse = lse.chunk(world_size, dim=-1)[rank]
+    
+    
+    log("out", out, rank0_only=True)
+    log("out diff", local_out - ds_o)
 
