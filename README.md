@@ -1,3 +1,8 @@
+## Distributed Attention for Long Context LLM Models.
+
+## Ulysses Attention
+TBD
+
 ## Ring Flash Attention
 
 This repo implements the [RingAttention](https://github.com/lhao499/RingAttention) with [FlashAttention](https://github.com/Dao-AILab/flash-attention). Currently, this repo implements:
