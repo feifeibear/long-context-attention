@@ -9,6 +9,7 @@ from deepspeed import init_distributed
 
 from flash_attn import flash_attn_func
 
+
 def log(msg, a, rank0_only=False):
     world_size = dist.get_world_size()
     rank = dist.get_rank()
@@ -85,8 +86,12 @@ if __name__ == "__main__":
     # prcess_group == sequence_process_group
     sp_pg = dist.new_group(ranks=[i for i in range(world_size)])
 
-    mha = torch.nn.MultiheadAttention(d * nheads // world_size, nheads // world_size).to(device).to(dtype)
-    
+    mha = (
+        torch.nn.MultiheadAttention(d * nheads // world_size, nheads // world_size)
+        .to(device)
+        .to(dtype)
+    )
+
     def torch_attn(query_layer, key_layer, value_layer, *args):
         """
         local attn implementations
@@ -106,18 +111,35 @@ if __name__ == "__main__":
         context_layer, _ = mha(query_layer, key_layer, value_layer, *args)
 
         context_layer = context_layer.reshape(bs, seqlen, -1, hs)
-        
+
         return context_layer
-    
+
     # attn = torch_attn
     # attn = ring_flash_attn_func
-    attn = flash_attn_func
-    
+
+    def flash_attn_impl(q, k, v, **args):
+        out, _, _ = flash_attn_func(
+            q,
+            k,
+            v,
+            dropout_p=dropout_p,
+            causal=causal,
+            window_size=(-1, -1),
+            alibi_slopes=None,
+            deterministic=deterministic,
+            return_attn_probs=True,
+        )
+        return out
+
+    attn = flash_attn_impl
+
     dist_attn = DistributedAttention(attn, sp_pg, scatter_idx=2, gather_idx=1)
-    
-    ds_o = dist_attn(local_q.reshape(batch_size, seqlen//world_size, nheads, d), 
-                  local_k.reshape(batch_size, seqlen//world_size, nheads, d), 
-                  local_v.reshape(batch_size, seqlen//world_size, nheads, d))
+
+    ds_o = dist_attn(
+        local_q.reshape(batch_size, seqlen // world_size, nheads, d),
+        local_k.reshape(batch_size, seqlen // world_size, nheads, d),
+        local_v.reshape(batch_size, seqlen // world_size, nheads, d),
+    )
 
     dist.barrier()
     if rank == 0:
@@ -127,7 +149,9 @@ if __name__ == "__main__":
 
     # reference, a local flash attn
     out, lse, _ = flash_attn_func(
-        q, k, v,
+        q,
+        k,
+        v,
         dropout_p=dropout_p,
         causal=causal,
         window_size=(-1, -1),
@@ -139,8 +163,6 @@ if __name__ == "__main__":
     print(f"ds_o {ds_o.shape}")
     local_out = out.chunk(world_size, dim=1)[rank]
     local_lse = lse.chunk(world_size, dim=-1)[rank]
-    
-    
+
     log("out", out, rank0_only=True)
     log("out diff", local_out - ds_o)
-
