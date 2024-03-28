@@ -84,7 +84,6 @@ def all_to_all_4D(input : torch.tensor,
         raise RuntimeError("scatter_idx must be 1 or 2 and gather_idx must be 1 or 2")
 
 class _SeqAllToAll4D(torch.autograd.Function):
-
     @staticmethod
     def forward(ctx: Any, group: dist.ProcessGroup, input: Tensor, scatter_idx: int, gather_idx: int) -> Tensor:
 
@@ -96,57 +95,8 @@ class _SeqAllToAll4D(torch.autograd.Function):
 
     @staticmethod
     def backward(ctx: Any, *grad_output: Tensor) -> Tuple[None, Tensor, None, None]:
-        return (None, _SeqAllToAll.apply(ctx.group, *grad_output, ctx.gather_idx, ctx.scatter_idx), None, None)
+        return (None, _SeqAllToAll4D.apply(ctx.group, *grad_output, ctx.gather_idx, ctx.scatter_idx), None, None)
 
-
-
-def single_all_to_all(input, scatter_idx, gather_idx, group):
-    seq_world_size = dist.get_world_size(group)
-    inp_shape = list(input.shape)
-    inp_shape[scatter_idx] = inp_shape[scatter_idx] // seq_world_size
-    # TODO(jiaruifang) make change, not checked
-    if scatter_idx == 1:
-        input_t = input.reshape(
-            [seq_world_size * inp_shape[0], inp_shape[scatter_idx]] + \
-            inp_shape[scatter_idx + 1:]
-        ).contiguous()
-    elif scatter_idx >= 2:
-        # transpose groups of heads with the seq-len parallel dimension, so that we can scatter them!
-        input_t = input.reshape(
-            [-1, seq_world_size, inp_shape[scatter_idx]] + \
-            inp_shape[scatter_idx + 1:]
-        ).transpose(0, 1).contiguous()
-    else:
-        raise RuntimeError("scatter_idx must be greater than 1")
-
-    output = torch.empty_like(input_t)
-    # https://pytorch.org/docs/stable/distributed.html#torch.distributed.all_to_all_single
-    dist.all_to_all_single(output, input_t, group=group)
-
-    # if scattering the seq-dim, transpose the heads back to the original dimension
-    if scatter_idx < 2:
-        output = output.transpose(0, 1).contiguous()
-
-    return output.reshape(
-        inp_shape[: gather_idx] + \
-        [inp_shape[gather_idx] * seq_world_size,] + \
-        inp_shape[gather_idx + 1:]).contiguous()
-
-
-class _SeqAllToAll(torch.autograd.Function):
-
-    @staticmethod
-    def forward(ctx: Any, group: dist.ProcessGroup, input: Tensor, scatter_idx: int, gather_idx: int) -> Tensor:
-
-        ctx.group = group
-        ctx.scatter_idx = scatter_idx
-        ctx.gather_idx = gather_idx
-
-        return single_all_to_all(input, scatter_idx, gather_idx, group)
-
-    @staticmethod
-    def backward(ctx: Any, *grad_output: Tensor) -> Tuple[None, Tensor, None, None]:
-        return (None, _SeqAllToAll.apply(ctx.group, *grad_output, ctx.gather_idx, ctx.scatter_idx), None, None)
 
 
 class DistributedAttention(torch.nn.Module):
