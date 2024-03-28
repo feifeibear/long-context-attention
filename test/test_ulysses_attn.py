@@ -4,7 +4,7 @@ from ring_flash_attn.ring_flash_attn import ring_flash_attn_func
 import torch
 import torch.distributed as dist
 from ring_flash_attn import ring_flash_attn_qkvpacked_func
-from ds_attn.ulysses_attn_layer import DistributedAttention
+from ds_ulysses_attn.ulysses_attn_layer import DistributedAttention
 from deepspeed import init_distributed
 
 def log(msg, a, rank0_only=False):
@@ -87,12 +87,14 @@ if __name__ == "__main__":
     attn = torch.nn.MultiheadAttention(d * nheads // world_size, nheads // world_size).to(device).to(dtype)
     
     def torch_attn(query_layer, key_layer, value_layer, *args):
-        """_summary_
-
+        """
+        local attn implementations
         Args:
             query_layer : (bs, seqlen, hc/P, hs)
             key_layer : (bs, seqlen, hc/P, hs)
             value_layer : (bs, seqlen, hc/P, hs)
+        Returns:
+            context_layer : (bs, seqlen, hc/P, hs)
         """
         bs, seqlen, split_hc, hs = query_layer.shape
         query_layer = query_layer.reshape(bs, seqlen, -1)
@@ -105,7 +107,7 @@ if __name__ == "__main__":
         
         return context_layer
     
-    attn = torch_attn
+    # attn = torch_attn
     attn = ring_flash_attn_func
     
     dist_attn = DistributedAttention(attn, sp_pg, scatter_idx=2, gather_idx=1)
