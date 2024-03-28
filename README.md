@@ -1,7 +1,32 @@
 ## Distributed Attention for Long Context LLM Models.
 
+## Hybrid Ulysses-Ring Attention
+Utilizing a hybrid sequence parallelism, this method scales the sequence length across multiple GPUs. 
+It overcomes the limitations of both Ulysses and Ring attention approaches.
+
+1. Architectural Robustness: Ulysses encounters challenges when the number of heads exceeds the world size, whereas hybrid sequence parallelism imposes no such restrictions.
+
+2. Incorporates efficient communication strategies: Ring-attention leveraging computation overlap to conceal extensive P2P communication costs. 
+Ulysses employs All-to-All communications, ensuring the communication volume scales with sequence length rather than the number of GPUs. 
+The hybrid sequence parallelism integrates the best of both worlds.
+
+
+### Test
+
+```bash
+torchrun --nproc_per_node 8 test/test_hybrid_attn.py
+```
+
 ## Ulysses Attention
-TBD
+This repository re-implements the all-to-all communication pattern for inputs as 4D tensors, following the principles of [DeepSpeed-Ulysses](https://github.com/microsoft/DeepSpeed/blob/master/blogs/deepspeed-ulysses/README.md).
+It is important to note that DeepSpeed-Ulysses does not accommodate scenarios where the number of attention heads surpasses the size of the world (i.e., the total number of GPUs in the distributed setup).
+
+
+### Test
+
+```bash
+torchrun --nproc_per_node 8 test/test_ulysses_attn.py
+```
 
 ## Ring Flash Attention
 
@@ -70,3 +95,5 @@ torchrun --nproc_per_node 8 test/test_stripe_flash_attn_func.py
 torchrun --nproc_per_node 8 benchmark/benchmark_qkvpacked_func.py
 torchrun --nproc_per_node 8 benchmark/benchmark_varlen_qkvpacked_func.py
 ```
+
+
