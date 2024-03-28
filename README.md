@@ -6,9 +6,9 @@ It overcomes the limitations of both Ulysses and Ring attention approaches.
 
 1. Architectural Robustness: Ulysses encounters challenges when the number of heads exceeds the world size, whereas hybrid sequence parallelism imposes no such restrictions.
 
-2. Incorporates efficient communication strategies: Ring-attention leveraging computation overlap to conceal extensive P2P communication costs. 
+2. Incorporates efficient communication strategies: Ring-attention leveraging computation to overlap the P2P communication costs. 
 Ulysses employs All-to-All communications, ensuring the communication volume scales with sequence length rather than the number of GPUs. 
-The hybrid sequence parallelism integrates the best of both worlds.
+The hybrid sequence parallelism integrates the best of both approaches.
 
 
 ### Test
