@@ -117,6 +117,7 @@ if __name__ == "__main__":
     # attn = torch_attn
     # attn = ring_flash_attn_func
 
+    # warp flash_attn to match the attn signature in `DistributedAttention`
     def flash_attn_impl(q, k, v, **args):
         out, _, _ = flash_attn_func(
             q,
@@ -135,19 +136,30 @@ if __name__ == "__main__":
 
     dist_attn = DistributedAttention(attn, sp_pg, scatter_idx=2, gather_idx=1)
 
+    if rank == 0:
+        print("#" * 30)
+        print("# ds-ulysses forward:")
+        print("#" * 30)
+
     local_out = dist_attn(
         local_q.reshape(batch_size, seqlen // world_size, nheads, d),
         local_k.reshape(batch_size, seqlen // world_size, nheads, d),
         local_v.reshape(batch_size, seqlen // world_size, nheads, d),
     )
+
+    if rank == 0:
+        print("#" * 30)
+        print("# ds-ulysses backward:")
+        print("#" * 30)
+
     local_out.backward(local_dout)
 
     dist.barrier()
+
     if rank == 0:
         print("#" * 30)
-        print("# forward:")
+        print("# local forward:")
         print("#" * 30)
-
     # reference, a local flash attn
     out_ref, _, _ = flash_attn_func(
         q,
@@ -160,8 +172,16 @@ if __name__ == "__main__":
         deterministic=deterministic,
         return_attn_probs=True,
     )
+    if rank == 0:
+        print("#" * 30)
+        print("# local forward:")
+        print("#" * 30)
 
     out_ref.backward(dout)
+
+    dist.barrier()
+
+    # check correctness
 
     local_out_ref = out_ref.chunk(world_size, dim=1)[rank]
 
