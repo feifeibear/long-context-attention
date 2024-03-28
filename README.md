@@ -1,4 +1,4 @@
-## Distributed Attention for Long Context LLM Models.
+## Long-Context-Attention: Distributed Attention Implementations for Long Context LLM Model Training.
 
 ## Hybrid Ulysses-Ring Attention
 Utilizing a hybrid sequence parallelism, this method scales the sequence length across multiple GPUs. 
@@ -30,7 +30,8 @@ torchrun --nproc_per_node 8 test/test_ulysses_attn.py
 
 ## Ring Flash Attention
 
-This repo implements the [RingAttention](https://github.com/lhao499/RingAttention) with [FlashAttention](https://github.com/Dao-AILab/flash-attention). Currently, this repo implements:
+
+Ring-Attention use the code from repo [zhuzilin/ring-flash-attention](https://github.com/zhuzilin/ring-flash-attention), which implements the [RingAttention](https://github.com/lhao499/RingAttention) with [FlashAttention](https://github.com/Dao-AILab/flash-attention). We reuse the APIs:
 
 - `ring_flash_attn_func`: ring attention version of `flash_attn_func`
 - `ring_flash_attn_varlen_func`: ring attention version of `flash_attn_varlen_func`
@@ -96,4 +97,14 @@ torchrun --nproc_per_node 8 benchmark/benchmark_qkvpacked_func.py
 torchrun --nproc_per_node 8 benchmark/benchmark_varlen_qkvpacked_func.py
 ```
 
-
+## Citation
+```
+@misc{fang2024long,
+      title={Long-Context-Attention: Distributed Attention Implementations for Long Context LLM Model Training},
+      author={Jiarui Fang},
+      year={2024},
+      publisher = {GitHub},
+      journal = {GitHub repository},
+      howpublished = {\url{https://github.com/feifeibear/long-context-attention}},
+}
+```

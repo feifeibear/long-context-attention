@@ -84,6 +84,7 @@ if __name__ == "__main__":
     local_dout = dout.chunk(world_size, dim=1)[rank].detach().clone()
 
     # prepare process group for hybrid sequence parallelism
+    use_ring_low_dim = True
 
     sp_ulysses_degree = min(nheads, world_size)
     sp_ring_degree = world_size // sp_ulysses_degree
@@ -94,11 +95,18 @@ if __name__ == "__main__":
     ulysses_ranks = []
     ring_ranks = []
     for i in range(world_size):
-        if i // sp_ring_degree == rank // sp_ring_degree:
-            ring_ranks.append(i)
+        if use_ring_low_dim:
+            if i // sp_ring_degree == rank // sp_ring_degree:
+                ring_ranks.append(i)
 
-        if i % sp_ring_degree == rank % sp_ring_degree:
-            ulysses_ranks.append(i)
+            if i % sp_ring_degree == rank % sp_ring_degree:
+                ulysses_ranks.append(i)
+        else:
+            if i // sp_ulysses_degree == rank // sp_ulysses_degree:
+                ulysses_ranks.append(i)
+
+            if i % sp_ulysses_degree == rank % sp_ulysses_degree:
+                ring_ranks.append(i)
 
     assert len(ring_ranks) == sp_ring_degree
     assert len(ulysses_ranks) == sp_ulysses_degree
