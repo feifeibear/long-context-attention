@@ -135,11 +135,12 @@ if __name__ == "__main__":
 
     dist_attn = DistributedAttention(attn, sp_pg, scatter_idx=2, gather_idx=1)
 
-    ds_o = dist_attn(
+    local_out = dist_attn(
         local_q.reshape(batch_size, seqlen // world_size, nheads, d),
         local_k.reshape(batch_size, seqlen // world_size, nheads, d),
         local_v.reshape(batch_size, seqlen // world_size, nheads, d),
     )
+    local_out.backward(local_dout)
 
     dist.barrier()
     if rank == 0:
@@ -148,7 +149,7 @@ if __name__ == "__main__":
         print("#" * 30)
 
     # reference, a local flash attn
-    out, lse, _ = flash_attn_func(
+    out_ref, _, _ = flash_attn_func(
         q,
         k,
         v,
@@ -160,9 +161,21 @@ if __name__ == "__main__":
         return_attn_probs=True,
     )
 
-    print(f"ds_o {ds_o.shape}")
-    local_out = out.chunk(world_size, dim=1)[rank]
-    local_lse = lse.chunk(world_size, dim=-1)[rank]
+    out_ref.backward(dout)
 
-    log("out", out, rank0_only=True)
-    log("out diff", local_out - ds_o)
+    local_out_ref = out_ref.chunk(world_size, dim=1)[rank]
+
+    log("out", local_out, rank0_only=True)
+    log("out diff", local_out_ref - local_out)
+
+    local_dq_ref = q.grad.chunk(world_size, dim=1)[rank]
+    log("load_dq", local_q.grad)
+    log("dq diff", local_dq_ref - local_q.grad)
+
+    local_dk_ref = k.grad.chunk(world_size, dim=1)[rank]
+    log("load_dk", local_k.grad)
+    log("dk diff", local_dk_ref - local_k.grad)
+
+    local_dv_ref = v.grad.chunk(world_size, dim=1)[rank]
+    log("load_dk", local_v.grad)
+    log("dv diff", local_dv_ref - local_v.grad)
