@@ -22,7 +22,7 @@ def single_all_to_all(input, scatter_idx, gather_idx, group):
             [seq_world_size * inp_shape[0], inp_shape[scatter_idx]] + \
             inp_shape[scatter_idx + 1:]
         ).contiguous()
-    else:
+    elif scatter_idx >= 2:
         # transpose groups of heads with the seq-len parallel dimension, so that we can scatter them!
         input_t = input.reshape(
             [-1, seq_world_size, inp_shape[scatter_idx]] + \
@@ -30,6 +30,7 @@ def single_all_to_all(input, scatter_idx, gather_idx, group):
         ).transpose(0, 1).contiguous()
 
     output = torch.empty_like(input_t)
+    # https://pytorch.org/docs/stable/distributed.html#torch.distributed.all_to_all_single
     dist.all_to_all_single(output, input_t, group=group)
 
     # if scattering the seq-dim, transpose the heads back to the original dimension
@@ -115,17 +116,17 @@ class DistributedAttention(torch.nn.Module):
         print(f"after all2all query_layer.shape: {query_layer.shape}, key_layer.shape: {key_layer.shape}, value_layer.shape: {value_layer.shape}")
 
 
-        query_layer = query_layer.reshape(bs, seqlen, d // world_size)
-        key_layer = key_layer.reshape(bs, seqlen, d // world_size)
-        value_layer = value_layer.reshape(bs, seqlen, d // world_size)
+        # query_layer = query_layer.reshape(bs, seqlen, d // world_size)
+        # key_layer = key_layer.reshape(bs, seqlen, d // world_size)
+        # value_layer = value_layer.reshape(bs, seqlen, d // world_size)
 
-        _, seqlen, _ = query_layer.shape
+        # _, seqlen, _ = query_layer.shape
 
-        context_layer, _ = self.local_attn(query_layer, key_layer, value_layer, *args)
+        context_layer = self.local_attn(query_layer, key_layer, value_layer, *args)
 
 
         # context_layer [2, 3816, 1, 128]
-        context_layer = context_layer.reshape(bs, seqlen, -1, hs)
+        # context_layer = context_layer.reshape(bs, seqlen, -1, hs)
         print(f"context_layer shape {context_layer.shape}")
 
         # (bs, seq_len, head_cnt/N, head_size) -> (bs, seq_len/N, head_cnt, head_size)
