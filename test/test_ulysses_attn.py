@@ -83,8 +83,7 @@ if __name__ == "__main__":
     # prcess_group == sequence_process_group
     sp_pg = dist.new_group(ranks=[i for i in range(world_size)])
 
-    
-    attn = torch.nn.MultiheadAttention(d * nheads // world_size, nheads // world_size).to(device).to(dtype)
+    mha = torch.nn.MultiheadAttention(d * nheads // world_size, nheads // world_size).to(device).to(dtype)
     
     def torch_attn(query_layer, key_layer, value_layer, *args):
         """
@@ -96,19 +95,20 @@ if __name__ == "__main__":
         Returns:
             context_layer : (bs, seqlen, hc/P, hs)
         """
+        print(f"query_layer.shape {query_layer.shape}")
         bs, seqlen, split_hc, hs = query_layer.shape
         query_layer = query_layer.reshape(bs, seqlen, -1)
         key_layer = key_layer.reshape(bs, seqlen, -1)
         value_layer = value_layer.reshape(bs, seqlen, -1)
 
-        context_layer, _ = attn(query_layer, key_layer, value_layer, *args)
+        context_layer, _ = mha(query_layer, key_layer, value_layer, *args)
 
         context_layer = context_layer.reshape(bs, seqlen, -1, hs)
         
         return context_layer
     
-    # attn = torch_attn
-    attn = ring_flash_attn_func
+    attn = torch_attn
+    # attn = ring_flash_attn_func
     
     dist_attn = DistributedAttention(attn, sp_pg, scatter_idx=2, gather_idx=1)
 
