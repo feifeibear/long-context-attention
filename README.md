@@ -13,6 +13,12 @@ By further dividing the sequence parallel Process Group into Ulysses and Ring Pr
 
 LongContextAttention leverages the advantages of both methods while avoiding their respective constraints. This is achieved by adjusting the Ulysses Parallel Degree and the Ring Parallel Degree accordingly. This approach allows for a more efficient and flexible parallelization strategy, enhancing the performance of large-scale models while maintaining scalability and reducing communication overhead.
 
+- Ring-Attention segments data into smaller blocks and performs P2P (peer-to-peer) communication, which has a lower bandwidth utilization compared to collective communication. For instance, in the first diagram below (with head_num=8), Ulysses Degree=8 is significantly lower than Ulysses Degree=1, which illustrates the inefficiency of Ring-Attention.
+
+By further dividing the sequence parallel Process Group into Ulysses and Ring Process Groups, LongContextAttention employs a mix of All-to-All and asynchronous P2P communication to achieve its goals.
+
+LongContextAttention leverages the advantages of both methods while avoiding their respective constraints. This is achieved by adjusting the Ulysses Parallel Degree and the Ring Parallel Degree accordingly. This approach allows for a more efficient and flexible parallelization strategy, enhancing the performance of large-scale models while maintaining scalability and reducing communication overhead.
+
 ### Test
 
 ```bash
