@@ -10,7 +10,7 @@ from torch import Tensor
 
 import torch.distributed as dist
 from flash_attn import flash_attn_func
-from .utils import _SeqAllToAll4D
+from .utils import SeqAllToAll4D
 
 
 class UlyssesAttention(torch.nn.Module):
@@ -66,9 +66,9 @@ class UlyssesAttention(torch.nn.Module):
         # (bs, seq_len/N, head_cnt, head_size) -> (bs, seq_len, head_cnt/N, head_size)
 
         # scatter 2, gather 1
-        q = _SeqAllToAll4D.apply(self.spg, query, self.scatter_idx, self.gather_idx)
-        k = _SeqAllToAll4D.apply(self.spg, key, self.scatter_idx, self.gather_idx)
-        v = _SeqAllToAll4D.apply(self.spg, value, self.scatter_idx, self.gather_idx)
+        q = SeqAllToAll4D.apply(self.spg, query, self.scatter_idx, self.gather_idx)
+        k = SeqAllToAll4D.apply(self.spg, key, self.scatter_idx, self.gather_idx)
+        v = SeqAllToAll4D.apply(self.spg, value, self.scatter_idx, self.gather_idx)
 
         context_layer, _, _ = flash_attn_func(
             q,
@@ -84,7 +84,7 @@ class UlyssesAttention(torch.nn.Module):
 
         # (bs, seq_len, head_cnt/N, head_size) -> (bs, seq_len/N, head_cnt, head_size)
         # scatter 1, gather 2
-        output = _SeqAllToAll4D.apply(
+        output = SeqAllToAll4D.apply(
             self.spg, context_layer, self.gather_idx, self.scatter_idx
         )
 
