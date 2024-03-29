@@ -1,7 +1,8 @@
 from ring_flash_attn.ring_flash_attn import ring_flash_attn_func
+from long_context_attn.attn_layer import LongContextAttention
 import torch
 import torch.distributed as dist
-from ds_ulysses_attn.ulysses_attn_layer import DistributedAttention
+from ds_ulysses_attn.ulysses_attn_layer import UlyssesAttention
 from ring_flash_attn.utils import set_seq_parallel_pg
 from flash_attn import flash_attn_func
 
@@ -87,72 +88,26 @@ if __name__ == "__main__":
         f"rank {rank}, sp_ulysses_degree: {sp_ulysses_degree}, sp_ring_degree: {sp_ring_degree}"
     )
 
-    ulysses_pg, ring_pg = set_seq_parallel_pg(sp_ulysses_degree, sp_ring_degree, rank, world_size)
-
-
-    # prepare attn kernel for hyrbid attn
-    mha = (
-        torch.nn.MultiheadAttention(
-            d * nheads // sp_ulysses_degree, nheads // sp_ulysses_degree
-        )
-        .to(device)
-        .to(dtype)
+    ulysses_pg, ring_pg = set_seq_parallel_pg(
+        sp_ulysses_degree, sp_ring_degree, rank, world_size
     )
 
-    def torch_attn(query_layer, key_layer, value_layer, *args):
-        """
-        local attn implementations
-        Args:
-            query_layer : (bs, seqlen, hc/P, hs)
-            key_layer : (bs, seqlen, hc/P, hs)
-            value_layer : (bs, seqlen, hc/P, hs)
-        Returns:
-            context_layer : (bs, seqlen, hc/P, hs)
-        """
-        print(f"query_layer.shape {query_layer.shape}")
-        bs, seqlen, split_hc, hs = query_layer.shape
-        query_layer = query_layer.reshape(bs, seqlen, -1)
-        key_layer = key_layer.reshape(bs, seqlen, -1)
-        value_layer = value_layer.reshape(bs, seqlen, -1)
-
-        context_layer, _ = mha(query_layer, key_layer, value_layer, *args)
-
-        context_layer = context_layer.reshape(bs, seqlen, -1, hs)
-
-        return context_layer
-
-    # attn = torch_attn
-    # attn = ring_flash_attn_func
-
-    # warp flash_attn to match the attn signature in `DistributedAttention`
-    def flash_attn_impl(q, k, v, **args):
-        out, _, _ = ring_flash_attn_func(
-            q,
-            k,
-            v,
-            dropout_p=dropout_p,
-            causal=causal,
-            window_size=(-1, -1),
-            alibi_slopes=None,
-            deterministic=deterministic,
-            return_attn_probs=True,
-            group=ring_pg,
-        )
-        return out
-
-    attn = flash_attn_impl
-
-    dist_attn = DistributedAttention(attn, ulysses_pg, scatter_idx=2, gather_idx=1)
-
+    hybrid_seq_parallel_attn = LongContextAttention(ulysses_pg, ring_pg, 2, 1)
     if rank == 0:
         print("#" * 30)
         print("# ds-ulysses forward:")
         print("#" * 30)
 
-    local_out = dist_attn(
-        local_q.reshape(batch_size, seqlen // world_size, nheads, d),
-        local_k.reshape(batch_size, seqlen // world_size, nheads, d),
-        local_v.reshape(batch_size, seqlen // world_size, nheads, d),
+    local_out = hybrid_seq_parallel_attn(
+        local_q,
+        local_k,
+        local_v,
+        dropout_p=dropout_p,
+        causal=causal,
+        window_size=(-1, -1),
+        alibi_slopes=None,
+        deterministic=deterministic,
+        return_attn_probs=True,
     )
 
     if rank == 0:
