@@ -7,6 +7,16 @@ from ring_flash_attn import (
 )
 import torch.cuda
 
+import argparse
+
+parser = argparse.ArgumentParser(description="Process some integers.")
+
+parser.add_argument(
+    "--nheads", type=int, default=2, help="an integer for the accumulator"
+)
+
+args = parser.parse_args()
+
 
 def benchmark(f, num_iter=100, forward_only=True, log=True):
     dtype = torch.bfloat16
@@ -16,7 +26,7 @@ def benchmark(f, num_iter=100, forward_only=True, log=True):
     torch.cuda.set_device(device)
 
     seqlen = 1024 * 8
-    nheads = 5
+    nheads = args.nheads
     d = 128
     dropout_p = 0
     causal = True

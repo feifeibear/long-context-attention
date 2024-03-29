@@ -61,10 +61,6 @@ class LongContextAttention(torch.nn.Module):
             * output (Tensor): context output
         """
 
-        print(
-            f"before all2all query.shape: {query.shape}, key.shape: {key.shape}, value.shape: {value.shape}"
-        )
-
         # scatter 2, gather 1
         query_layer = _SeqAllToAll4D.apply(
             self.ulysses_pg, query, self.scatter_idx, self.gather_idx
@@ -76,12 +72,7 @@ class LongContextAttention(torch.nn.Module):
             self.ulysses_pg, value, self.scatter_idx, self.gather_idx
         )
 
-        # out shape : e.g., [s:h/p:]
-        print(
-            f"after all2all query_layer.shape: {query_layer.shape}, key_layer.shape: {key_layer.shape}, value_layer.shape: {value_layer.shape}"
-        )
-
-        context_layer, _, _ = ring_flash_attn_func(
+        out = ring_flash_attn_func(
             query_layer,
             key_layer,
             value_layer,
@@ -95,14 +86,15 @@ class LongContextAttention(torch.nn.Module):
             group=self.ring_pg,
         )
 
-        print(f"context_layer shape {context_layer.shape}")
+        if type(out) == tuple:
+            context_layer, _, _ = out
+        else:
+            context_layer = out
 
         # (bs, seq_len, head_cnt/N, head_size) -> (bs, seq_len/N, head_cnt, head_size)
         # scatter 1, gather 2
         output = _SeqAllToAll4D.apply(
             self.ulysses_pg, context_layer, self.gather_idx, self.scatter_idx
         )
-
-        print(f"output shape {output.shape}")
         # out e.g., [s/p::h]
         return output
