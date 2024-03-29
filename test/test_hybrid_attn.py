@@ -79,6 +79,7 @@ if __name__ == "__main__":
     local_dout = dout.chunk(world_size, dim=1)[rank].detach().clone()
 
     # prepare process group for hybrid sequence parallelism
+    use_ring_low_dim = True
 
     sp_ulysses_degree = min(nheads, world_size)
     sp_ring_degree = world_size // sp_ulysses_degree
@@ -87,6 +88,7 @@ if __name__ == "__main__":
     )
 
     ulysses_pg, ring_pg = set_seq_parallel_pg(sp_ulysses_degree, sp_ring_degree, rank, world_size)
+
 
     # prepare attn kernel for hyrbid attn
     mha = (
