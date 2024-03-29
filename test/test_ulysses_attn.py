@@ -1,11 +1,6 @@
-import os
-
-from ring_flash_attn.ring_flash_attn import ring_flash_attn_func
 import torch
 import torch.distributed as dist
-from ring_flash_attn import ring_flash_attn_qkvpacked_func
-from ds_ulysses_attn.ulysses_attn_layer import DistributedAttention
-import dist import init_distributed
+from ds_ulysses_attn.attn_layer import UlyssesAttention
 
 from flash_attn import flash_attn_func
 
@@ -38,8 +33,6 @@ def log(msg, a, rank0_only=False):
 
 if __name__ == "__main__":
     dist.init_process_group("nccl")
-
-    init_distributed()
 
     rank = dist.get_rank()
     world_size = dist.get_world_size()
@@ -86,55 +79,7 @@ if __name__ == "__main__":
     # prcess_group == sequence_process_group
     sp_pg = dist.new_group(ranks=[i for i in range(world_size)])
 
-    mha = (
-        torch.nn.MultiheadAttention(d * nheads // world_size, nheads // world_size)
-        .to(device)
-        .to(dtype)
-    )
-
-    def torch_attn(query_layer, key_layer, value_layer, *args):
-        """
-        local attn implementations
-        Args:
-            query_layer : (bs, seqlen, hc/P, hs)
-            key_layer : (bs, seqlen, hc/P, hs)
-            value_layer : (bs, seqlen, hc/P, hs)
-        Returns:
-            context_layer : (bs, seqlen, hc/P, hs)
-        """
-        print(f"query_layer.shape {query_layer.shape}")
-        bs, seqlen, split_hc, hs = query_layer.shape
-        query_layer = query_layer.reshape(bs, seqlen, -1)
-        key_layer = key_layer.reshape(bs, seqlen, -1)
-        value_layer = value_layer.reshape(bs, seqlen, -1)
-
-        context_layer, _ = mha(query_layer, key_layer, value_layer, *args)
-
-        context_layer = context_layer.reshape(bs, seqlen, -1, hs)
-
-        return context_layer
-
-    # attn = torch_attn
-    # attn = ring_flash_attn_func
-
-    # warp flash_attn to match the attn signature in `DistributedAttention`
-    def flash_attn_impl(q, k, v, **args):
-        out, _, _ = flash_attn_func(
-            q,
-            k,
-            v,
-            dropout_p=dropout_p,
-            causal=causal,
-            window_size=(-1, -1),
-            alibi_slopes=None,
-            deterministic=deterministic,
-            return_attn_probs=True,
-        )
-        return out
-
-    attn = flash_attn_impl
-
-    dist_attn = DistributedAttention(attn, sp_pg, scatter_idx=2, gather_idx=1)
+    dist_attn = UlyssesAttention(sp_pg)
 
     if rank == 0:
         print("#" * 30)
@@ -142,9 +87,15 @@ if __name__ == "__main__":
         print("#" * 30)
 
     local_out = dist_attn(
-        local_q.reshape(batch_size, seqlen // world_size, nheads, d),
-        local_k.reshape(batch_size, seqlen // world_size, nheads, d),
-        local_v.reshape(batch_size, seqlen // world_size, nheads, d),
+        local_q,
+        local_k,
+        local_v,
+        dropout_p=dropout_p,
+        causal=causal,
+        window_size=(-1, -1),
+        alibi_slopes=None,
+        deterministic=deterministic,
+        return_attn_probs=True,
     )
 
     if rank == 0:
