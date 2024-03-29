@@ -57,6 +57,16 @@ def benchmark(f, num_iter=100, forward_only=True, log=True):
         deterministic=deterministic,
         return_attn_probs=False,
     )
+    out = f(
+        qkv,
+        dropout_p=dropout_p,
+        causal=causal,
+        window_size=(-1, -1),
+        alibi_slopes=None,
+        deterministic=deterministic,
+        return_attn_probs=False,
+    )
+    out.backward(dout)
 
     begin = torch.cuda.Event(enable_timing=True)
     begin.record()
@@ -103,7 +113,7 @@ if __name__ == "__main__":
     forward_only = args.fwd_only
 
     for f in [
-        # flash_attn_qkvpacked_func,
+        flash_attn_qkvpacked_func,
         ring_flash_attn_qkvpacked_func,
         zigzag_ring_flash_attn_qkvpacked_func,
         stripe_flash_attn_qkvpacked_func,
