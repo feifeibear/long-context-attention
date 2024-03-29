@@ -87,7 +87,7 @@ if __name__ == "__main__":
     dist.init_process_group("nccl")
     rank = dist.get_rank()
 
-    forward_only = False
+    forward_only = True
 
     torch.cuda.empty_cache()
     if rank == 0:
