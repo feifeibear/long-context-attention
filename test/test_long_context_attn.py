@@ -2,8 +2,8 @@ from ring_flash_attn.ring_flash_attn import ring_flash_attn_func
 from long_context_attn.attn_layer import LongContextAttention
 import torch
 import torch.distributed as dist
-from ds_ulysses_attn.ulysses_attn_layer import UlyssesAttention
-from ring_flash_attn.utils import set_seq_parallel_pg
+from ds_ulysses_attn.attn_layer import UlyssesAttention
+from long_context_attn import set_seq_parallel_pg
 from flash_attn import flash_attn_func
 
 

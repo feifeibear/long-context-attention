@@ -18,7 +18,7 @@ def benchmark(f, num_iter=100, forward_only=True, log=True):
 
     batch_size = 1
     seqlen = 1024 * 8
-    nheads = 5
+    nheads = 2
     d = 128
     dropout_p = 0
     causal = True
