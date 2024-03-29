@@ -8,6 +8,15 @@ from ring_flash_attn import (
 )
 import torch.cuda
 
+import argparse
+
+parser = argparse.ArgumentParser(description="Process some integers.")
+
+parser.add_argument("--nheads", type=int, default=2, help="head number")
+parser.add_argument("--batch_size", type=int, default=2, help="batch size")
+
+args = parser.parse_args()
+
 
 def benchmark(f, num_iter=100, forward_only=True, log=True):
     dtype = torch.bfloat16
@@ -16,9 +25,9 @@ def benchmark(f, num_iter=100, forward_only=True, log=True):
     device = torch.device(f"cuda:{rank}")
     torch.cuda.set_device(device)
 
-    batch_size = 1
+    batch_size = args.batch_size
     seqlen = 1024 * 8
-    nheads = 2
+    nheads = args.nheads
     d = 128
     dropout_p = 0
     causal = True

@@ -1,4 +1,4 @@
-## Long-Context-Attention: Distributed Attention Implementations for Long Context LLM Model Training.
+# Long-Context-Attention: Distributed Attention Implementations for Long Context LLM Model Training.
 This repo contains three sequence parallel approaches. DeepSpeed-Ulysses Attention, Ring-Attention and a hybrid Long-Context-Attention.
 
 ## LongContextAttention (Hybrid Ulysses-Ring Attention)

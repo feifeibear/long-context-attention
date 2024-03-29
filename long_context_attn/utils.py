@@ -15,6 +15,5 @@ def set_seq_parallel_pg(sp_ulysses_degree, sp_ring_degree, rank, world_size):
         group = torch.distributed.new_group(ring_ranks)
         if rank in ring_ranks:
             ring_pg = group
-            print(f"{rank} in {ring_ranks}")
 
     return ulyssess_pg, ring_pg

@@ -151,9 +151,13 @@ class LongContextAttentionQKVPacked(torch.nn.Module):
         """
 
         # scatter 3, gather 1
-        qkv = SeqAllToAll5D.apply(
-            self.ulysses_pg, qkv, self.scatter_idx, self.gather_idx
-        )
+
+        world_size = dist.get_world_size(self.ulysses_pg)
+
+        if world_size > 1:
+            qkv = SeqAllToAll5D.apply(
+                self.ulysses_pg, qkv, self.scatter_idx, self.gather_idx
+            )
 
         out = ring_flash_attn_qkvpacked_func(
             qkv,
@@ -170,15 +174,14 @@ class LongContextAttentionQKVPacked(torch.nn.Module):
         # print(f"out {out.shape}")
 
         if type(out) == tuple:
-            context_layer, _, _ = out
-        else:
-            context_layer = out
+            out, _, _ = out
 
-        print(f"context_layer {context_layer.shape}")
         # (bs, seq_len, head_cnt/N, head_size) -> (bs, seq_len/N, head_cnt, head_size)
         # scatter 1, gather 2
-        output = SeqAllToAll4D.apply(
-            self.ulysses_pg, context_layer, self.gather_idx, self.scatter_idx - 1
-        )
+
+        if world_size > 1:
+            out = SeqAllToAll4D.apply(
+                self.ulysses_pg, out, self.gather_idx, self.scatter_idx - 1
+            )
         # out e.g., [s/p::h]
-        return output
+        return out

@@ -1,22 +1,28 @@
-from flash_attn import flash_attn_qkvpacked_func
+from flash_attn import flash_attn_varlen_qkvpacked_func
 import torch
 import torch.distributed as dist
-from ring_flash_attn import (
-    ring_flash_attn_qkvpacked_func,
-)
+from long_context_attn import LongContextAttentionQKVPacked, set_seq_parallel_pg
 import torch.cuda
 
+import argparse
 
-def benchmark(f, num_iter=100, forward_only=True, log=True):
+parser = argparse.ArgumentParser(description="Process some integers.")
+
+parser.add_argument("--nheads", type=int, default=2, help="head number")
+parser.add_argument("--batch_size", type=int, default=2, help="batch size")
+args = parser.parse_args()
+
+
+def benchmark(num_iter=100, forward_only=True, log=True):
     dtype = torch.bfloat16
     rank = dist.get_rank()
     world_size = dist.get_world_size()
     device = torch.device(f"cuda:{rank}")
     torch.cuda.set_device(device)
 
-    batch_size = 1
+    batch_size = args.batch_size
     seqlen = 1024 * 8
-    nheads = 5
+    nheads = args.nheads
     d = 128
     dropout_p = 0
     causal = True
@@ -25,10 +31,19 @@ def benchmark(f, num_iter=100, forward_only=True, log=True):
     assert seqlen % (2 * world_size) == 0
     assert d % 8 == 0
 
-    q, k, v = torch.randn(
-        3, batch_size, seqlen, nheads, d, device=device, dtype=dtype, requires_grad=True
-    ).chunk(3, dim=0)
+    qkv = torch.randn(
+        batch_size, seqlen, 3, nheads, d, device=device, dtype=dtype, requires_grad=True
+    )
     dout = torch.randn(batch_size, seqlen, nheads, d, device=device, dtype=dtype)
+
+    sp_ulysses_degree = min(nheads, world_size)
+    sp_ring_degree = world_size // sp_ulysses_degree
+
+    ulysses_pg, ring_pg = set_seq_parallel_pg(
+        sp_ulysses_degree, sp_ring_degree, rank, world_size
+    )
+
+    longctx_attn = LongContextAttentionQKVPacked(ulysses_pg, ring_pg)
 
     begin = torch.cuda.Event(enable_timing=True)
     begin.record()
@@ -36,10 +51,8 @@ def benchmark(f, num_iter=100, forward_only=True, log=True):
     if forward_only:
         with torch.no_grad():
             for _ in range(num_iter):
-                _ = f(
-                    q,
-                    k,
-                    v,
+                _ = longctx_attn(
+                    qkv,
                     dropout_p=dropout_p,
                     causal=causal,
                     window_size=(-1, -1),
@@ -51,7 +64,7 @@ def benchmark(f, num_iter=100, forward_only=True, log=True):
     else:
         for _ in range(num_iter):
             qkv.grad = None
-            out = f(
+            out = longctx_attn(
                 qkv,
                 dropout_p=dropout_p,
                 causal=causal,
@@ -74,16 +87,10 @@ if __name__ == "__main__":
     dist.init_process_group("nccl")
     rank = dist.get_rank()
 
-    forward_only = False
+    forward_only = True
 
-    for f in [
-        flash_attn_qkvpacked_func,
-        ring_flash_attn_qkvpacked_func,
-        zigzag_ring_flash_attn_qkvpacked_func,
-        stripe_flash_attn_qkvpacked_func,
-    ]:
-        torch.cuda.empty_cache()
-        if rank == 0:
-            print(f"# {f.__name__}")
-        benchmark(f, forward_only=forward_only, log=False)
-        benchmark(f, forward_only=forward_only, log=True)
+    torch.cuda.empty_cache()
+    if rank == 0:
+        print(f"long context attention qkvpacked")
+    benchmark(forward_only=forward_only, log=False)
+    benchmark(forward_only=forward_only, log=True)
