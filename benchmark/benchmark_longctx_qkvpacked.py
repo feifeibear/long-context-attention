@@ -126,7 +126,7 @@ if __name__ == "__main__":
     torch.cuda.empty_cache()
     if rank == 0:
         color_print(
-            f"# long context attention qkvpacked. ulysses_degree : {args.ulysses_degree}"
+            f"# long context attention qkvpacked. ulysses_degree : {args.ulysses_degree} fwd_only {forward_only}"
         )
     benchmark(forward_only=forward_only, log=False)
     benchmark(forward_only=forward_only, log=True)

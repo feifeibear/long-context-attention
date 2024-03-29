@@ -12,17 +12,23 @@ Ulysses employs All-to-All communications, ensuring the communication cost scale
 The hybrid sequence parallelism integrates the best of both approaches.
 
 
+
 ### Test
 
 ```bash
-torchrun --nproc_per_node 8 test/test_hybrid_attn.py
+torchrun --nproc_per_node 8 test/test_long_context_qkvpacked_attn.py
 ```
 
 ### Benchmark
 ```
-torchrun --nproc_per_node 2 benchmark/benchmark_longctx_qkvpacked.py --nheads 2 --batch_size 2 --fwd_only False --ulysses_degree 1
-torchrun --nproc_per_node 2 benchmark/benchmark_longctx_qkvpacked.py --nheads 2 --batch_size 2 --fwd_only False --ulysses_degree 2
+FWD_FLAG=0
+torchrun --nproc_per_node 2 benchmark/benchmark_longctx_qkvpacked.py --nheads 2 --batch_size 2 --fwd_only $FWD_FLAG --ulysses_degree 1
+torchrun --nproc_per_node 2 benchmark/benchmark_longctx_qkvpacked.py --nheads 2 --batch_size 2 --fwd_only $FWD_FLAG --ulysses_degree 2
+torchrun --nproc_per_node 2 benchmark/benchmark_qkvpacked_func.py --nheads 2 --batch_size 2 --fwd_only $FWD_FLAG
 ```
+
+![head=8](./media/long_ctx_h8.png)
+![head=8](./media/long_ctx_h2.png)
 
 ## Ulysses Attention
 This repository re-implements the all-to-all communication pattern for inputs as 4D tensors, following the principles of [DeepSpeed-Ulysses](https://github.com/microsoft/DeepSpeed/blob/master/blogs/deepspeed-ulysses/README.md).
@@ -53,24 +59,6 @@ Note that
 
 The main idea is to use the `softmax_lse` output from the flash attention kernels.
 
-The current performance on 8xH800 is ([benchmark/benchmark_qkvpacked_func.py](benchmark/benchmark_qkvpacked_func.py)):
-
-|                      | GPU    | theoretic flash_attn | ring_attn | zigzag_ring | stripe_attn |
-| -------------------- | ------ | -------------------- | --------- | ----------- | ----------- |
-| fwd only (iter/sec)  | 8xH800 | 2418.4 / 8 = 302.3   | 208.0     | 283.0       | 259.6       |
-|                      |        |                      | 68.8%     | **93.6%**   | 85.9%       |
-| fwd + bwd (iter/sec) | 8xH800 | 705.2 / 8 = 88.2     | 54.3      | 75.7        | 76.9        |
-|                      |        |                      | 61.5%     | 85.9%       | **87.2%**   |
-| fwd only (iter/sec)  | 8xA100 | 1545.9 / 8 = 193.2   | 124.4     | 179.0       | 163.9       |
-|                      |        |                      | 64.3%     | **92.7%**   | 84.8%       |
-| fwd + bwd (iter/sec) | 8xA100 | 470.6 / 8 = 58.8     | 33.3      | 49.5        | 45.9        |
-|                      |        |                      | 56.6%     | **84.1%**   | 78.1%       |
-
-Note that
-- when running the benchmark with with 8 gpu, the flash attn code is running with 1/8 computation of ring attention.
-- nvlink between GPUs are required for high performance.
-- the varlen versions are slow at the moment, please use the non-varlen version if possible.
-
 ### Limits
 
 There are some arithmetic errors with the current implementation. The reason for them is probably that flash attention will return bf16 value for each block, so we cannot accumluate the values with the original fp32 ones.
@@ -95,13 +83,6 @@ torchrun --nproc_per_node 8 test/test_ring_flash_attn_varlen_func.py
 torchrun --nproc_per_node 8 test/test_zigzag_ring_flash_attn_func.py
 torchrun --nproc_per_node 8 test/test_zigzag_ring_flash_attn_varlen_func.py
 torchrun --nproc_per_node 8 test/test_stripe_flash_attn_func.py
-```
-
-### Benchmark
-
-```bash
-torchrun --nproc_per_node 8 benchmark/benchmark_qkvpacked_func.py
-torchrun --nproc_per_node 8 benchmark/benchmark_varlen_qkvpacked_func.py
 ```
 
 ## Citation

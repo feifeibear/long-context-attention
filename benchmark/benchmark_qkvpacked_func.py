@@ -120,6 +120,6 @@ if __name__ == "__main__":
     ]:
         torch.cuda.empty_cache()
         if rank == 0:
-            color_print(f"# {f.__name__}")
+            color_print(f"# {f.__name__} fwd_only {forward_only}")
         benchmark(f, forward_only=forward_only, log=False)
         benchmark(f, forward_only=forward_only, log=True)
