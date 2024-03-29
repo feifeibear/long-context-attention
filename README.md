@@ -13,6 +13,11 @@ By further dividing the sequence parallel Process Group into Ulysses and Ring Pr
 
 LongContextAttention leverages the advantages of both methods while avoiding their respective constraints. This is achieved by adjusting the Ulysses Parallel Degree and the Ring Parallel Degree accordingly. This approach allows for a more efficient and flexible parallelization strategy, enhancing the performance of large-scale models while maintaining scalability and reducing communication overhead.
 
+- Ring-Attention segments data into smaller blocks and performs P2P (peer-to-peer) communication, which has a lower bandwidth utilization compared to collective communication. For instance, in the first diagram below (with head_num=8), Ulysses Degree=8 is significantly lower than Ulysses Degree=1, which illustrates the inefficiency of Ring-Attention.
+
+By further dividing the sequence parallel Process Group into Ulysses and Ring Process Groups, LongContextAttention employs a mix of All-to-All and asynchronous P2P communication to achieve its goals.
+
+LongContextAttention leverages the advantages of both methods while avoiding their respective constraints. This is achieved by adjusting the Ulysses Parallel Degree and the Ring Parallel Degree accordingly. This approach allows for a more efficient and flexible parallelization strategy, enhancing the performance of large-scale models while maintaining scalability and reducing communication overhead.
 
 ### Test
 
@@ -32,7 +37,7 @@ torchrun --nproc_per_node 2 benchmark/benchmark_qkvpacked_func.py --nheads 2 --b
 ![head=8](./media/long_ctx_h2.png)
 
 ## Ulysses Attention
-This repository re-implements the all-to-all communication pattern for inputs as 4D tensors, following the principles of [DeepSpeed-Ulysses](https://github.com/microsoft/DeepSpeed/blob/master/blogs/deepspeed-ulysses/README.md).
+This repository re-implements the all-to-all communication functions and support QKV packed togather, following the principles of [DeepSpeed-Ulysses](https://github.com/microsoft/DeepSpeed/blob/master/blogs/deepspeed-ulysses/README.md).
 It is important to note that DeepSpeed-Ulysses does not accommodate scenarios where the number of attention heads surpasses the size of the world (i.e., the total number of GPUs in the distributed setup).
 
 
