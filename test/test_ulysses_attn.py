@@ -5,7 +5,7 @@ import torch
 import torch.distributed as dist
 from ring_flash_attn import ring_flash_attn_qkvpacked_func
 from ds_ulysses_attn.ulysses_attn_layer import DistributedAttention
-from deepspeed import init_distributed
+import dist import init_distributed
 
 from flash_attn import flash_attn_func
 
