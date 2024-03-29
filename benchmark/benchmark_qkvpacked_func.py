@@ -14,8 +14,15 @@ parser = argparse.ArgumentParser(description="Process some integers.")
 
 parser.add_argument("--nheads", type=int, default=2, help="head number")
 parser.add_argument("--batch_size", type=int, default=2, help="batch size")
+parser.add_argument(
+    "--fwd_only", type=bool, default=False, help="benchmark forward pass only"
+)
 
 args = parser.parse_args()
+
+
+def color_print(text):
+    print("\033[91m {}\033[00m".format(text))
 
 
 def benchmark(f, num_iter=100, forward_only=True, log=True):
@@ -40,6 +47,16 @@ def benchmark(f, num_iter=100, forward_only=True, log=True):
         batch_size, seqlen, 3, nheads, d, device=device, dtype=dtype, requires_grad=True
     )
     dout = torch.randn(batch_size, seqlen, nheads, d, device=device, dtype=dtype)
+
+    _ = f(
+        qkv,
+        dropout_p=dropout_p,
+        causal=causal,
+        window_size=(-1, -1),
+        alibi_slopes=None,
+        deterministic=deterministic,
+        return_attn_probs=False,
+    )
 
     begin = torch.cuda.Event(enable_timing=True)
     begin.record()
@@ -76,23 +93,23 @@ def benchmark(f, num_iter=100, forward_only=True, log=True):
     time = begin.elapsed_time(end) / 1000.0
 
     if rank == 0 and log:
-        print(f"{num_iter / time:.3f} iter/s, {time:.3f} sec")
+        color_print(f"{num_iter / time:.3f} iter/s, {time:.3f} sec")
 
 
 if __name__ == "__main__":
     dist.init_process_group("nccl")
     rank = dist.get_rank()
 
-    forward_only = False
+    forward_only = args.fwd_only
 
     for f in [
-        flash_attn_qkvpacked_func,
+        # flash_attn_qkvpacked_func,
         ring_flash_attn_qkvpacked_func,
         zigzag_ring_flash_attn_qkvpacked_func,
         stripe_flash_attn_qkvpacked_func,
     ]:
         torch.cuda.empty_cache()
         if rank == 0:
-            print(f"# {f.__name__}")
+            color_print(f"# {f.__name__}")
         benchmark(f, forward_only=forward_only, log=False)
         benchmark(f, forward_only=forward_only, log=True)

@@ -18,6 +18,12 @@ The hybrid sequence parallelism integrates the best of both approaches.
 torchrun --nproc_per_node 8 test/test_hybrid_attn.py
 ```
 
+### Benchmark
+```
+torchrun --nproc_per_node 2 benchmark/benchmark_longctx_qkvpacked.py --nheads 2 --batch_size 2 --fwd_only False --ulysses_degree 1
+torchrun --nproc_per_node 2 benchmark/benchmark_longctx_qkvpacked.py --nheads 2 --batch_size 2 --fwd_only False --ulysses_degree 2
+```
+
 ## Ulysses Attention
 This repository re-implements the all-to-all communication pattern for inputs as 4D tensors, following the principles of [DeepSpeed-Ulysses](https://github.com/microsoft/DeepSpeed/blob/master/blogs/deepspeed-ulysses/README.md).
 It is important to note that DeepSpeed-Ulysses does not accommodate scenarios where the number of attention heads surpasses the size of the world (i.e., the total number of GPUs in the distributed setup).
