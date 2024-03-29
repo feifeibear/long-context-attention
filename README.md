@@ -30,6 +30,8 @@ torchrun --nproc_per_node 2 benchmark/benchmark_longctx_qkvpacked.py --nheads 2 
 torchrun --nproc_per_node 2 benchmark/benchmark_qkvpacked_func.py --nheads 2 --batch_size 2 --fwd_only $FWD_FLAG
 ```
 
+no-comm-ring is an ideal flash-attention version without communications.
+
 ![head=8](./media/long_ctx_h8.png)
 ![head=8](./media/long_ctx_h2.png)
 
@@ -68,16 +70,6 @@ There are some arithmetic errors with the current implementation. The reason for
 
 And also because we need to save extra fp32 buffer during computation, the memory usage would be higher than theoretic limit.
 
-### TODOs
-
-- [x] Implement `ring_flash_attn_varlen_qkvpacked_func`
-- [x] Implement `zigzag_ring_flash_attn_qkvpacked_func` [issue#2](https://github.com/zhuzilin/ring-flash-attention/issues/2)
-- [x] Implement `stripe_flash_attn_qkvpacked_func`
-- [x] Implement `zigzag_ring_flash_attn_varlen_qkvpacked_func`
-- [x] Implement `*_kvpacked_func` and `*_func` variant for all APIs
-- [ ] Optimize `*_varlen_func`
-- [ ] Try to upstream to flash attention.
-
 ### Test
 
 ```bash
@@ -87,6 +79,12 @@ torchrun --nproc_per_node 8 test/test_zigzag_ring_flash_attn_func.py
 torchrun --nproc_per_node 8 test/test_zigzag_ring_flash_attn_varlen_func.py
 torchrun --nproc_per_node 8 test/test_stripe_flash_attn_func.py
 ```
+
+### TODOs
+
+- [ ] LongContext Attention uses `zigzag_ring_flash_attn_qkvpacked_func`
+- [ ] LongContext Attention uses  `stripe_flash_attn_qkvpacked_func`
+- [ ] LongContext Attention uses  `zigzag_ring_flash_attn_varlen_qkvpacked_func`
 
 ## Citation
 ```
