@@ -146,7 +146,6 @@ def all_to_all_5D(
         # input (torch.tensor): a tensor sharded along dim 1 (bs, seqlen/P, 3, hc, hs) output: (bs, seqlen, 3, hc/P, hs)
         bs, shard_seqlen, t_cnt, hc, hs = input.shape
 
-        print(f"all_to_all_5D {input.shape} seq_world_size {seq_world_size}")
         assert t_cnt == 3
         seqlen = shard_seqlen * seq_world_size
         shard_hc = hc // seq_world_size
