@@ -108,10 +108,22 @@ torchrun --nproc_per_node 8 benchmark/benchmark_varlen_qkvpacked_func.py
 ```
 @misc{fang2024long,
       title={Long-Context-Attention: Distributed Attention Implementations for Long Context LLM Model Training},
-      author={Jiarui Fang},
+      author={Jiarui Fang, Zilin Zhu, Yang Yu},
       year={2024},
       publisher = {GitHub},
       journal = {GitHub repository},
       howpublished = {\url{https://github.com/feifeibear/long-context-attention}},
+}
+@article{jacobs2023deepspeed,
+      title={Deepspeed ulysses: System optimizations for enabling training of extreme long sequence transformer models},
+      author={Jacobs, Sam Ade and Tanaka, Masahiro and Zhang, Chengming and Zhang, Minjia and Song, Leon and Rajbhandari, Samyam and He, Yuxiong},
+      journal={arXiv preprint arXiv:2309.14509},
+      year={2023}
+}
+@article{liu2023ring,
+      title={Ring attention with blockwise transformers for near-infinite context},
+      author={Liu, Hao and Zaharia, Matei and Abbeel, Pieter},
+      journal={arXiv preprint arXiv:2310.01889},
+      year={2023}
 }
 ```
