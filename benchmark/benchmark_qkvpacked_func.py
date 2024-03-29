@@ -113,7 +113,7 @@ if __name__ == "__main__":
     forward_only = args.fwd_only
 
     for f in [
-        flash_attn_qkvpacked_func,
+        # flash_attn_qkvpacked_func,
         ring_flash_attn_qkvpacked_func,
         zigzag_ring_flash_attn_qkvpacked_func,
         stripe_flash_attn_qkvpacked_func,
