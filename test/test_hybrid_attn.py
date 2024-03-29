@@ -1,11 +1,8 @@
-import os
-
 from ring_flash_attn.ring_flash_attn import ring_flash_attn_func
 import torch
 import torch.distributed as dist
 from ds_ulysses_attn.ulysses_attn_layer import DistributedAttention
-from deepspeed import init_distributed
-
+from ring_flash_attn.utils import set_seq_parallel_pg
 from flash_attn import flash_attn_func
 
 
@@ -38,8 +35,6 @@ def log(msg, a, rank0_only=False):
 if __name__ == "__main__":
     dist.init_process_group("nccl")
 
-    init_distributed()
-
     rank = dist.get_rank()
     world_size = dist.get_world_size()
     dtype = torch.bfloat16
@@ -47,7 +42,7 @@ if __name__ == "__main__":
 
     batch_size = 2
     seqlen = 3816
-    nheads = 1
+    nheads = 2
     d = 128
     dropout_p = 0
     causal = True
@@ -91,22 +86,7 @@ if __name__ == "__main__":
         f"rank {rank}, sp_ulysses_degree: {sp_ulysses_degree}, sp_ring_degree: {sp_ring_degree}"
     )
 
-    ulysses_ranks = []
-    ring_ranks = []
-    for i in range(world_size):
-        if i // sp_ring_degree == rank // sp_ring_degree:
-            ring_ranks.append(i)
-
-        if i % sp_ring_degree == rank % sp_ring_degree:
-            ulysses_ranks.append(i)
-
-    assert len(ring_ranks) == sp_ring_degree
-    assert len(ulysses_ranks) == sp_ulysses_degree
-
-    print(f"rank {rank}, ulysses_ranks: {ulysses_ranks}; ring_ranks: {ring_ranks}")
-
-    ring_pg = dist.new_group(ranks=ring_ranks)
-    ulysses_pg = dist.new_group(ranks=ulysses_ranks)
+    ulysses_pg, ring_pg = set_seq_parallel_pg(sp_ulysses_degree, sp_ring_degree, rank, world_size)
 
     # prepare attn kernel for hyrbid attn
     mha = (
