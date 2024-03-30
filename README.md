@@ -3,13 +3,13 @@ This repo contains three sequence parallel approaches. DeepSpeed-Ulysses-Attenti
 
 ## LongContextAttention (Hybrid Ulysses-Ring Attention)
 
-LongContextAttention is a sequence length parallel approach that integrates the strengths of DeepSpeed-Ulysses-Attention and Ring-Attention to address the limitations of both methods.
+LongContextAttention is a **sequence parallel approach** that integrates the strengths of DeepSpeed-Ulysses-Attention and Ring-Attention to address the limitations of both methods.
 
 - Ulysses is sensitive to network architecture and the parallel degree can not be larger than the number of heads, which makes it not suitable for GQA and MQA. For example, Ulysses fails to operate when the head_num is set to 1.
 
 - Ring-Attention segments QKV into smaller blocks and performs P2P (peer-to-peer) communication, which has a lower bandwidth utilization compared to collective communication. For instance, in the first diagram below (with head_num=8), Ulysses Degree=8 is significantly lower than Ulysses Degree=1, which illustrates the inefficiency of Ring-Attention.
 
-By delicately partitioning the sequence parallel Process Group into Ulysses and Ring Process Groups, LongContextAttention aims to integrate the strengths of both methods while respectfully acknowledging and navigating around their individual limitations. 
+By partitioning the sequence parallel Process Group into Ulysses and Ring Process Groups, LongContextAttention aims to integrate the strengths of both methods while respectfully acknowledging and navigating around their individual limitations. 
 It utilizes a balanced combination of All-to-All and asynchronous peer-to-peer (P2P) communication and addresses the challenges associated with head number restrictions.
 
 
@@ -25,14 +25,20 @@ You can try to tune ulysses_degree for the best performance.
 
 ```
 FWD_FLAG=0
-torchrun --nproc_per_node 2 benchmark/benchmark_longctx_qkvpacked.py --nheads 2 --batch_size 2 --fwd_only $FWD_FLAG --ulysses_degree 1
-torchrun --nproc_per_node 2 benchmark/benchmark_longctx_qkvpacked.py --nheads 2 --batch_size 2 --fwd_only $FWD_FLAG --ulysses_degree 2
-torchrun --nproc_per_node 2 benchmark/benchmark_qkvpacked_func.py --nheads 2 --batch_size 2 --fwd_only $FWD_FLAG
+torchrun --nproc_per_node 8 benchmark/benchmark_longctx_qkvpacked.py --nheads 2 --batch_size 2 --fwd_only $FWD_FLAG --ulysses_degree 1
+torchrun --nproc_per_node 8 benchmark/benchmark_longctx_qkvpacked.py --nheads 2 --batch_size 2 --fwd_only $FWD_FLAG --ulysses_degree 2
+torchrun --nproc_per_node 8 benchmark/benchmark_qkvpacked_func.py --nheads 2 --batch_size 2 --fwd_only $FWD_FLAG
 ```
 
-no-comm-ring is an ideal flash-attention version without communications.
+The following two pictures demostrate the throughput (iters/sec) of different sequence parallel approaches on 8xA100 connected with NVLINK.
+Note that no-comm is an flash-attention version conduct flash-attn locally without communications. 
+It can be viewed as the upper bound of the sequence parallel implementation.
 
+- head num=8
 ![head=8](./media/long_ctx_h8.png)
+
+- head num=2, ulysses degree is limited to <=2.
+
 ![head=8](./media/long_ctx_h2.png)
 
 ## Ulysses Attention
