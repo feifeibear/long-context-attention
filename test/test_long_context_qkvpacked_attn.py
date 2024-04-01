@@ -1,7 +1,3 @@
-import os
-
-from ring_flash_attn import ring_flash_attn_qkvpacked_func
-from ring_flash_attn.stripe_flash_attn import stripe_flash_attn_qkvpacked_func
 import torch
 import torch.distributed as dist
 from long_context_attn import LongContextAttentionQKVPacked, set_seq_parallel_pg
