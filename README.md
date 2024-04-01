@@ -21,7 +21,7 @@ torchrun --nproc_per_node 8 test/test_long_context_qkvpacked_attn.py
 
 ### Benchmark
 
-You can try to tune `ulysses_degree`, `ring_impl_type` for the best performance.
+You can try to tune `ulysses_degree`, `ring_impl_type`, `--use_ulysses_lowdim` for the best performance.
 
 ```
 FWD_FLAG=""
