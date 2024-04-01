@@ -3,7 +3,7 @@ This repo contains three sequence parallel approaches. DeepSpeed-Ulysses-Attenti
 
 ## LongContextAttention (Hybrid Ulysses-Ring Attention)
 
-LongContextAttention is a **sequence parallel approach** that integrates the strengths of DeepSpeed-Ulysses-Attention and Ring-Attention to address the limitations of both methods.
+LongContextAttention is a **sequence parallel approach** that integrates the strengths of DeepSpeed-Ulysses-Attention and Ring-Attention while addressing the limitations of both methods.
 
 - Ulysses is sensitive to network architecture and the parallel degree can not be larger than the number of heads, which makes it not suitable for GQA and MQA. For example, Ulysses fails to operate when the head_num is set to 1.
 
@@ -12,6 +12,7 @@ LongContextAttention is a **sequence parallel approach** that integrates the str
 By partitioning the sequence parallel Process Group into Ulysses and Ring Process Groups, LongContextAttention aims to integrate the strengths of both methods while respectfully acknowledging and navigating around their individual limitations. 
 It utilizes a balanced combination of All-to-All and asynchronous peer-to-peer (P2P) communication and addresses the challenges associated with head number restrictions.
 
+LongContextAttention is compatible with the other parallel strategies, such as Tensor Parallelism, ZeRO, Pipeline Parallelism.
 
 ### Test
 
@@ -21,12 +22,17 @@ torchrun --nproc_per_node 8 test/test_long_context_qkvpacked_attn.py
 
 ### Benchmark
 
-You can try to tune ulysses_degree for the best performance.
+You can try to tune `ulysses_degree`, `ring_impl_type` for the best performance.
 
 ```
-FWD_FLAG=0
-torchrun --nproc_per_node 8 benchmark/benchmark_longctx_qkvpacked.py --nheads 2 --batch_size 2 --fwd_only $FWD_FLAG --ulysses_degree 1
-torchrun --nproc_per_node 8 benchmark/benchmark_longctx_qkvpacked.py --nheads 2 --batch_size 2 --fwd_only $FWD_FLAG --ulysses_degree 2
+FWD_FLAG=1
+torchrun --nproc_per_node 8 benchmark/benchmark_longctx_qkvpacked.py --nheads 2 --batch_size 2 --fwd_only $FWD_FLAG --ulysses_degree 1 --ring_impl_type 'basic'
+torchrun --nproc_per_node 8 benchmark/benchmark_longctx_qkvpacked.py --nheads 2 --batch_size 2 --fwd_only $FWD_FLAG --ulysses_degree 2 --ring_impl_type 'basic'
+torchrun --nproc_per_node 8 benchmark/benchmark_longctx_qkvpacked.py --nheads 2 --batch_size 2 --fwd_only $FWD_FLAG --ulysses_degree 1 --ring_impl_type 'zigzag'
+torchrun --nproc_per_node 8 benchmark/benchmark_longctx_qkvpacked.py --nheads 2 --batch_size 2 --fwd_only $FWD_FLAG --ulysses_degree 2 --ring_impl_type 'zigzag'
+torchrun --nproc_per_node 8 benchmark/benchmark_longctx_qkvpacked.py --nheads 2 --batch_size 2 --fwd_only $FWD_FLAG --ulysses_degree 1 --ring_impl_type 'strip'
+torchrun --nproc_per_node 8 benchmark/benchmark_longctx_qkvpacked.py --nheads 2 --batch_size 2 --fwd_only $FWD_FLAG --ulysses_degree 2 --ring_impl_type 'strip'
+
 torchrun --nproc_per_node 8 benchmark/benchmark_qkvpacked_func.py --nheads 2 --batch_size 2 --fwd_only $FWD_FLAG
 ```
 
@@ -35,9 +41,25 @@ Note that no-comm is an flash-attention version conduct flash-attn locally witho
 It can be viewed as the upper bound of the sequence parallel implementation.
 
 - head num=8
+
+The throughput (iters/sec) of different LongContextAttention settings (ring_degree x ulysses_degree) is shown in the following table. 
+We observed that the best throughput is achieved when `ulysses_degree`=4 and ring_attn_impl as `strip`.
+
+| (ring_degree x ulysses_degree) | 8x1   | 4x2   | 2x4   | 1x8   |
+|--------------------------------|-------|-------|-------|-------|
+| basic                          | 8.161 | 11.151| **12.84** | 10.588|
+| zigzag                         | 8.211 | 11.024| **12.864**| 10.679|
+| strip                          | 8.464 | 10.964| **13.105**| 10.589|
+
+
+In the figure presented below, we contrast the performance of LongContextAttention with that of ring-flash-attention. Notably, LongContextAttention demonstrates a remarkable **54%** increase in throughput, showcasing its superior efficiency over the ring-flash-attention approach.
+
+
 ![head=8](./media/long_ctx_h8.png)
 
-- head num=2, ulysses degree is limited to <=2.
+- head num=2, note that ulysses degree is limited to <=2.
+
+The best throughtput is achieved when `ulysses_degree`=2 and ring_attn_impl as `zigzag`. We observed 18% and 31% throughput improvement for FWD+BWD and FWD-only.
 
 ![head=8](./media/long_ctx_h2.png)
 
@@ -45,6 +67,12 @@ It can be viewed as the upper bound of the sequence parallel implementation.
 This repository re-implements the all-to-all communication functions and support QKV packed togather, following the principles of [DeepSpeed-Ulysses](https://github.com/microsoft/DeepSpeed/blob/master/blogs/deepspeed-ulysses/README.md).
 It is important to note that DeepSpeed-Ulysses does not accommodate scenarios where the number of attention heads surpasses the size of the world (i.e., the total number of GPUs in the distributed setup).
 
+Below, I will use a diagram of FlashAttention Style to illustrate the workflow of deepspeed-ulysses. 
+In the diagram, 'N' represents the sequence length, 'd' denotes the hidden size calculated as hidden_size = (hc * hs), where 'hc' stands for the number of heads, and 'hs' is the size of each head. 'P' indicates the number of GPUs (with 'P=4' in the diagram).
+
+As we can see, if the hc < 4, we can not compute attention in one single GPU.
+
+![ds-ulysses](./media/ulysses.png)
 
 ### Test
 
@@ -52,10 +80,17 @@ It is important to note that DeepSpeed-Ulysses does not accommodate scenarios wh
 torchrun --nproc_per_node 8 test/test_ulysses_attn.py
 ```
 
-## Ring Flash Attention
+## Ring Attention
 
 
-Ring-Attention use the code from repo [zhuzilin/ring-flash-attention](https://github.com/zhuzilin/ring-flash-attention), which implements the [RingAttention](https://github.com/lhao499/RingAttention) with [FlashAttention](https://github.com/Dao-AILab/flash-attention). We reuse the APIs:
+Ring-Attention use the code from repo [zhuzilin/ring-flash-attention](https://github.com/zhuzilin/ring-flash-attention), which implements the [RingAttention](https://github.com/lhao499/RingAttention) with [FlashAttention](https://github.com/Dao-AILab/flash-attention). 
+
+
+Below, I use a diagram to illustrate the workflow of one single head of ring-attention. Note there are hcx such workflow in paralle.
+
+![head=8](./media/ring.png)
+
+We reuse the APIs:
 
 - `ring_flash_attn_func`: ring attention version of `flash_attn_func`
 - `ring_flash_attn_varlen_func`: ring attention version of `flash_attn_varlen_func`
@@ -85,12 +120,6 @@ torchrun --nproc_per_node 8 test/test_zigzag_ring_flash_attn_func.py
 torchrun --nproc_per_node 8 test/test_zigzag_ring_flash_attn_varlen_func.py
 torchrun --nproc_per_node 8 test/test_stripe_flash_attn_func.py
 ```
-
-### TODOs
-
-- [ ] LongContext Attention uses `zigzag_ring_flash_attn_qkvpacked_func`
-- [ ] LongContext Attention uses  `stripe_flash_attn_qkvpacked_func`
-- [ ] LongContext Attention uses  `zigzag_ring_flash_attn_varlen_qkvpacked_func`
 
 ## Citation
 ```
