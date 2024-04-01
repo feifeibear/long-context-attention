@@ -5,11 +5,11 @@ This repo provides a distributed sequence parallel approaches called Long-Contex
 
 LongContextAttention is a **sequence parallel approach** that integrates the strengths of DeepSpeed-Ulysses-Attention and Ring-Attention while addressing the limitations of both methods.
 
-- Ulysses is sensitive to network architecture and the parallel degree can not be larger than the number of heads, which makes it not suitable for GQA and MQA. For example, Ulysses fails to operate when the head_num is set to 1.
+- Ulysses is sensitive to network architecture and the parallel degree can not be larger than the number of heads, which makes it not suitable for GQA (Grouped Query Attention ) and MQA (Multi-Query Attention). For example, Ulysses fails to operate when the head_num is set to 1.
 
-- Ring-Attention segments QKV into smaller blocks and performs P2P (peer-to-peer) communication, which has a lower bandwidth utilization compared to collective communication. For instance, in the first diagram below (with head_num=8), Ulysses Degree=8 is significantly lower than Ulysses Degree=1, which illustrates the inefficiency of Ring-Attention.
+- Ring-Attention segments QKV into smaller blocks and performs P2P (peer-to-peer) communication, which has a lower bandwidth utilization compared to collective communication. For instance, in the first table below (with head_num=8), Ulysses Degree=1 is significantly lower than Ulysses Degree=4.
 
-By partitioning the sequence parallel Process Group into Ulysses and Ring Process Groups, LongContextAttention aims to integrate the strengths of both methods navigating around their individual limitations.
+By partitioning the sequence parallel Process Group into Ulysses and Ring Process Groups, LongContextAttention aims to integrate the strengths of both methods navigating around their limitations.
 
 LongContextAttention is compatible with the other parallel strategies, such as Tensor Parallelism, ZeRO, Pipeline Parallelism.
 
@@ -37,8 +37,8 @@ done
 torchrun --nproc_per_node 8 benchmark/benchmark_qkvpacked_func.py --nheads $NHEADS --batch_size 2 $FWD_FLAG
 ```
 
-The following two pictures demostrate the throughput (iters/sec) of different sequence parallel approaches on 8xA100 connected with NVLINK.
-Note that no-comm is an flash-attention version conduct flash-attn locally without communications. 
+The following two pictures demonstrate the throughput (iters/sec) of different sequence parallel approaches on 8xA100 connected with NVLINK.
+Note that no-comm is a flash-attention version that conducts flash-attn locally without communications. 
 It can be viewed as the upper bound of the sequence parallel implementation.
 
 - head num=8
@@ -58,14 +58,14 @@ In the figure presented below, we contrast the performance of LongContextAttenti
 
 ![head=8](./media/long_ctx_h8.png)
 
-- head num=2, note that ulysses degree is limited to <=2.
+- head num=2, note that Ulysses degree is limited to <=2.
 
-The best throughtput is achieved when `ulysses_degree`=2 and ring_attn_impl as `zigzag`. We observed 18% and 31% throughput improvement for FWD+BWD and FWD-only.
+The best throughput is achieved when `ulysses_degree`=2 and ring_attn_impl as `zigzag`. We observed 18% and 31% throughput improvement for FWD+BWD and FWD-only.
 
 ![head=8](./media/long_ctx_h2.png)
 
 ## Ulysses Attention
-This repository re-implements the all-to-all communication functions and support QKV packed togather, following the principles of [DeepSpeed-Ulysses](https://github.com/microsoft/DeepSpeed/blob/master/blogs/deepspeed-ulysses/README.md).
+This repository re-implements the all-to-all communication functions and supports QKV packed together, following the principles of [DeepSpeed-Ulysses](https://github.com/microsoft/DeepSpeed/blob/master/blogs/deepspeed-ulysses/README.md).
 It is important to note that DeepSpeed-Ulysses does not accommodate scenarios where the number of attention heads surpasses the size of the world (i.e., the total number of GPUs in the distributed setup).
 
 Below, I will use a diagram of FlashAttention Style to illustrate the workflow of deepspeed-ulysses. 
@@ -87,7 +87,7 @@ torchrun --nproc_per_node 8 test/test_ulysses_attn.py
 Ring-Attention use the code from repo [zhuzilin/ring-flash-attention](https://github.com/zhuzilin/ring-flash-attention), which implements the [RingAttention](https://github.com/lhao499/RingAttention) with [FlashAttention](https://github.com/Dao-AILab/flash-attention). 
 
 
-Below, I use a diagram to illustrate the workflow of one single head of ring-attention. Note there are hcx such workflow in paralle.
+Below, I use a diagram to illustrate the workflow of one single head of ring-attention. Note there are _hc_x such workflow in parallel.
 
 ![head=8](./media/ring.png)
 
@@ -108,9 +108,9 @@ The main idea is to use the `softmax_lse` output from the flash attention kernel
 
 ### Limits
 
-There are some arithmetic errors with the current implementation. The reason for them is probably that flash attention will return bf16 value for each block, so we cannot accumluate the values with the original fp32 ones.
+There are some arithmetic errors with the current implementation. The reason for this is probably that flash attention will return the bf16 value for each block, so we cannot accumulate the values with the original fp32 ones.
 
-And also because we need to save extra fp32 buffer during computation, the memory usage would be higher than theoretic limit.
+And also because we need to save extra fp32 buffer during computation, the memory usage would be higher than the theoretic limit.
 
 ### Test
 
