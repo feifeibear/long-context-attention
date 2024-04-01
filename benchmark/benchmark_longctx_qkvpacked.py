@@ -8,6 +8,13 @@ import argparse
 
 parser = argparse.ArgumentParser(description="Process some integers.")
 
+parser.add_argument(
+    "--ring_impl_type",
+    type=str,
+    default="basic",
+    choices=["basic", "zigzag", "strip"],
+    help="ring attn implementation type",
+)
 parser.add_argument("--nheads", type=int, default=2, help="head number")
 parser.add_argument("--batch_size", type=int, default=2, help="batch size")
 parser.add_argument(

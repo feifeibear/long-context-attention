@@ -1,9 +1,11 @@
 import os
 
 from ring_flash_attn import ring_flash_attn_qkvpacked_func
+from ring_flash_attn.stripe_flash_attn import stripe_flash_attn_qkvpacked_func
 import torch
 import torch.distributed as dist
 from long_context_attn import LongContextAttentionQKVPacked, set_seq_parallel_pg
+from long_context_attn.utils import RING_IMPL_QKVPACKED_DICT
 
 
 def log(msg, a, rank0_only=False):
@@ -32,8 +34,9 @@ def log(msg, a, rank0_only=False):
         dist.barrier()
 
 
-if __name__ == "__main__":
-    dist.init_process_group("nccl")
+def test(ring_impl_type="basic"):
+    ring_fn = RING_IMPL_QKVPACKED_DICT[ring_impl_type]
+
     rank = dist.get_rank()
     world_size = dist.get_world_size()
     dtype = torch.bfloat16
@@ -56,7 +59,9 @@ if __name__ == "__main__":
     ulysses_pg, ring_pg = set_seq_parallel_pg(
         sp_ulysses_degree, sp_ring_degree, rank, world_size
     )
-    longctx_attn = LongContextAttentionQKVPacked(ulysses_pg, ring_pg)
+    longctx_attn = LongContextAttentionQKVPacked(
+        ulysses_pg, ring_pg, ring_impl_type="strip"
+    )
 
     qkv = torch.randn(
         batch_size, seqlen, 3, nheads, d, device=device, dtype=dtype, requires_grad=True
@@ -96,9 +101,7 @@ if __name__ == "__main__":
     # local_out = out.chunk(world_size, dim=1)[rank]
     # local_lse = lse.chunk(world_size, dim=-1)[rank]
 
-    fn = ring_flash_attn_qkvpacked_func
-
-    ring_out, ring_lse, _ = fn(
+    ring_out, ring_lse, _ = ring_fn(
         local_qkv_ref,
         dropout_p=dropout_p,
         causal=causal,
@@ -127,3 +130,10 @@ if __name__ == "__main__":
 
     log("load_dq", ring_dqkv)
     log("dq diff", dqkv - ring_dqkv)
+
+
+if __name__ == "__main__":
+    dist.init_process_group("nccl")
+    for ring_impl_type in ["basic", "zigzag", "strip"]:
+        print(f"ring_impl_type: {ring_impl_type}")
+        test(ring_impl_type)

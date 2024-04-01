@@ -1,14 +1,12 @@
 from ds_ulysses_attn.utils import SeqAllToAll4D, SeqAllToAll5D
-from ring_flash_attn import (
-    ring_flash_attn_func,
-    ring_flash_attn_qkvpacked_func,
-)
+
 import torch
 
 from typing import Any
 from torch import Tensor
 
 import torch.distributed as dist
+from long_context_attn.utils import RING_IMPL_DICT, RING_IMPL_QKVPACKED_DICT
 
 
 class LongContextAttention(torch.nn.Module):
@@ -27,6 +25,7 @@ class LongContextAttention(torch.nn.Module):
         ring_pg: dist.ProcessGroup,
         scatter_idx: int = 2,
         gather_idx: int = 1,
+        ring_impl_type: str = "basic",
     ) -> None:
 
         super(LongContextAttention, self).__init__()
@@ -35,6 +34,7 @@ class LongContextAttention(torch.nn.Module):
         self.ulysses_pg = ulysses_pg
         self.scatter_idx = scatter_idx
         self.gather_idx = gather_idx
+        self.ring_attn_fn = RING_IMPL_DICT[ring_impl_type]
 
     def forward(
         self,
@@ -73,7 +73,7 @@ class LongContextAttention(torch.nn.Module):
             self.ulysses_pg, value, self.scatter_idx, self.gather_idx
         )
 
-        out = ring_flash_attn_func(
+        out = self.ring_attn_fn(
             query_layer,
             key_layer,
             value_layer,
@@ -117,6 +117,7 @@ class LongContextAttentionQKVPacked(torch.nn.Module):
         ring_pg: dist.ProcessGroup,
         scatter_idx: int = 3,
         gather_idx: int = 1,
+        ring_impl_type: str = "basic",
     ) -> None:
 
         super(LongContextAttentionQKVPacked, self).__init__()
@@ -125,6 +126,8 @@ class LongContextAttentionQKVPacked(torch.nn.Module):
         self.ulysses_pg = ulysses_pg
         self.scatter_idx = scatter_idx
         self.gather_idx = gather_idx
+
+        self.ring_attn_fn = RING_IMPL_QKVPACKED_DICT[ring_impl_type]
 
     def forward(
         self,
@@ -159,7 +162,7 @@ class LongContextAttentionQKVPacked(torch.nn.Module):
                 self.ulysses_pg, qkv, self.scatter_idx, self.gather_idx
             )
 
-        out = ring_flash_attn_qkvpacked_func(
+        out = self.ring_attn_fn(
             qkv,
             dropout_p=dropout_p,
             softmax_scale=softmax_scale,
