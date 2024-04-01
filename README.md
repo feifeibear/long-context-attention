@@ -1,5 +1,5 @@
-# Long-Context-Attention: Distributed Attention Implementations for Long Context LLM Model Training
-This repo contains three sequence parallel approaches. DeepSpeed-Ulysses-Attention, Ring-Attention and a hybrid Long-Context-Attention proposed by us.
+# Long-Context-Attention: Distributed Attention Implementations for Long Context LLM Model Training and Inference
+This repo provides a distributed sequence parallel approaches called Long-Context-Attention. It synergizes the strengths of two popular distributed attentions, i.e. DeepSpeed-Ulysses-Attention and Ring-Attention, delivering a superior performance that outshines its predecessors.
 
 ## LongContextAttention (Hybrid Ulysses-Ring Attention)
 
@@ -9,8 +9,7 @@ LongContextAttention is a **sequence parallel approach** that integrates the str
 
 - Ring-Attention segments QKV into smaller blocks and performs P2P (peer-to-peer) communication, which has a lower bandwidth utilization compared to collective communication. For instance, in the first diagram below (with head_num=8), Ulysses Degree=8 is significantly lower than Ulysses Degree=1, which illustrates the inefficiency of Ring-Attention.
 
-By partitioning the sequence parallel Process Group into Ulysses and Ring Process Groups, LongContextAttention aims to integrate the strengths of both methods while respectfully acknowledging and navigating around their individual limitations. 
-It utilizes a balanced combination of All-to-All and asynchronous peer-to-peer (P2P) communication and addresses the challenges associated with head number restrictions.
+By partitioning the sequence parallel Process Group into Ulysses and Ring Process Groups, LongContextAttention aims to integrate the strengths of both methods navigating around their individual limitations.
 
 LongContextAttention is compatible with the other parallel strategies, such as Tensor Parallelism, ZeRO, Pipeline Parallelism.
 
