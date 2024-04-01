@@ -24,15 +24,17 @@ torchrun --nproc_per_node 8 test/test_long_context_qkvpacked_attn.py
 You can try to tune `ulysses_degree`, `ring_impl_type` for the best performance.
 
 ```
-FWD_FLAG=1
-torchrun --nproc_per_node 8 benchmark/benchmark_longctx_qkvpacked.py --nheads 2 --batch_size 2 --fwd_only $FWD_FLAG --ulysses_degree 1 --ring_impl_type 'basic'
-torchrun --nproc_per_node 8 benchmark/benchmark_longctx_qkvpacked.py --nheads 2 --batch_size 2 --fwd_only $FWD_FLAG --ulysses_degree 2 --ring_impl_type 'basic'
-torchrun --nproc_per_node 8 benchmark/benchmark_longctx_qkvpacked.py --nheads 2 --batch_size 2 --fwd_only $FWD_FLAG --ulysses_degree 1 --ring_impl_type 'zigzag'
-torchrun --nproc_per_node 8 benchmark/benchmark_longctx_qkvpacked.py --nheads 2 --batch_size 2 --fwd_only $FWD_FLAG --ulysses_degree 2 --ring_impl_type 'zigzag'
-torchrun --nproc_per_node 8 benchmark/benchmark_longctx_qkvpacked.py --nheads 2 --batch_size 2 --fwd_only $FWD_FLAG --ulysses_degree 1 --ring_impl_type 'strip'
-torchrun --nproc_per_node 8 benchmark/benchmark_longctx_qkvpacked.py --nheads 2 --batch_size 2 --fwd_only $FWD_FLAG --ulysses_degree 2 --ring_impl_type 'strip'
+FWD_FLAG=""
+NHEADS=8
 
-torchrun --nproc_per_node 8 benchmark/benchmark_qkvpacked_func.py --nheads 2 --batch_size 2 --fwd_only $FWD_FLAG
+for RING_IMPL_TYPE in "basic" "zigzag" "strip"; do
+torchrun --nproc_per_node 8 benchmark/benchmark_longctx_qkvpacked.py --nheads $NHEADS --batch_size 2 $FWD_FLAG --ulysses_degree 1 --ring_impl_type $RING_IMPL_TYPE
+torchrun --nproc_per_node 8 benchmark/benchmark_longctx_qkvpacked.py --nheads $NHEADS --batch_size 2 $FWD_FLAG --ulysses_degree 2 --ring_impl_type $RING_IMPL_TYPE
+torchrun --nproc_per_node 8 benchmark/benchmark_longctx_qkvpacked.py --nheads $NHEADS --batch_size 2 $FWD_FLAG --ulysses_degree 4 --ring_impl_type $RING_IMPL_TYPE
+torchrun --nproc_per_node 8 benchmark/benchmark_longctx_qkvpacked.py --nheads $NHEADS --batch_size 2 $FWD_FLAG --ulysses_degree 8 --ring_impl_type $RING_IMPL_TYPE
+done
+
+torchrun --nproc_per_node 8 benchmark/benchmark_qkvpacked_func.py --nheads $NHEADS --batch_size 2 $FWD_FLAG
 ```
 
 The following two pictures demostrate the throughput (iters/sec) of different sequence parallel approaches on 8xA100 connected with NVLINK.

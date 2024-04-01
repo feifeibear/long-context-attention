@@ -18,7 +18,12 @@ parser.add_argument(
 parser.add_argument("--nheads", type=int, default=2, help="head number")
 parser.add_argument("--batch_size", type=int, default=2, help="batch size")
 parser.add_argument(
-    "--fwd_only", type=bool, default=False, help="benchmark forward pass only"
+    "--fwd_only", action="store_true", help="benchmark forward pass only"
+)
+parser.add_argument(
+    "--use_ulysses_lowdim",
+    action="store_true",
+    help="ulysses process group on low dimension",
 )
 parser.add_argument(
     "--ulysses_degree",
@@ -60,7 +65,7 @@ def benchmark(num_iter=100, forward_only=True, log=True):
     sp_ring_degree = world_size // sp_ulysses_degree
 
     ulysses_pg, ring_pg = set_seq_parallel_pg(
-        sp_ulysses_degree, sp_ring_degree, rank, world_size
+        sp_ulysses_degree, sp_ring_degree, rank, world_size, args.use_ulysses_lowdim
     )
 
     longctx_attn = LongContextAttentionQKVPacked(ulysses_pg, ring_pg)
@@ -133,7 +138,7 @@ if __name__ == "__main__":
     torch.cuda.empty_cache()
     if rank == 0:
         color_print(
-            f"# long context attention qkvpacked. ulysses_degree : {args.ulysses_degree} fwd_only {forward_only}"
+            f"# long context attention qkvpacked. ulysses_degree : {args.ulysses_degree} fwd_only {forward_only} use_ulysses_lowdim {args.use_ulysses_lowdim}"
         )
     benchmark(forward_only=forward_only, log=False)
     benchmark(forward_only=forward_only, log=True)

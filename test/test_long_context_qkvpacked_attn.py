@@ -56,7 +56,7 @@ def test(ring_impl_type="basic"):
         sp_ulysses_degree, sp_ring_degree, rank, world_size
     )
     longctx_attn = LongContextAttentionQKVPacked(
-        ulysses_pg, ring_pg, ring_impl_type="strip"
+        ulysses_pg, ring_pg, ring_impl_type=ring_impl_type
     )
 
     qkv = torch.randn(
