@@ -53,7 +53,7 @@ We observed that the best throughput is achieved when `ulysses_degree`=4 and rin
 | strip                          | 8.464 | 10.964| **13.105**| 10.589|
 
 
-In the figure presented below, we contrast the performance of LongContextAttention with that of ring-flash-attention. Notably, LongContextAttention demonstrates a remarkable **54%** increase in throughput, showcasing its superior efficiency over the ring-flash-attention approach.
+In the figure presented below, we contrast the performance of LongContextAttention with that of ring-flash-attention. Notably, LongContextAttention demonstrates a remarkable **54%** and **75%** increase in throughpu for FWD+BWD and FWD-only, showcasing its superior efficiency over the ring-flash-attention approach.
 
 
 ![head=8](./media/long_ctx_h8.png)
