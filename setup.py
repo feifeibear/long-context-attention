@@ -1,10 +1,10 @@
 from setuptools import setup, find_packages
 
 setup(
-    name="ring_flash_attn",
+    name="long_context_attn",
     version="0.1",
-    author="zhuzilin",
-    url="https://github.com/zhuzilin/ring-flash-attention",
+    author="Jiarui Fang, Zilin Zhu, Yang Yu",
+    url="https://github.com/feifeibear/long-context-attention",
     packages=find_packages(),
     install_requires=[
         'flash-attn',
