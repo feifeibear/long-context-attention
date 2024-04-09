@@ -23,6 +23,7 @@ parser.add_argument(
 parser.add_argument(
     "--use_ulysses_lowdim",
     action="store_true",
+    default=True,
     help="ulysses process group on low dimension",
 )
 parser.add_argument(

@@ -15,7 +15,7 @@ parser = argparse.ArgumentParser(description="Process some integers.")
 parser.add_argument("--nheads", type=int, default=2, help="head number")
 parser.add_argument("--batch_size", type=int, default=2, help="batch size")
 parser.add_argument(
-    "--fwd_only", type=bool, default=False, help="benchmark forward pass only"
+    "--fwd_only", action="store_true", help="benchmark forward pass only"
 )
 
 args = parser.parse_args()
