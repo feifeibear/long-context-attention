@@ -1,5 +1,5 @@
 from ring_flash_attn.ring_flash_attn import ring_flash_attn_func
-from long_context_attn.attn_layer import (
+from yunchang import (
     LongContextAttention,
     LongContextAttentionQKVPacked,
 )
@@ -94,7 +94,7 @@ if __name__ == "__main__":
         sp_ulysses_degree, sp_ring_degree, rank, world_size
     )
 
-    hybrid_seq_parallel_attn = LongContextAttentionQKVPacked(ulysses_pg, ring_pg, 2, 1)
+    hybrid_seq_parallel_attn = LongContextAttention(ulysses_pg, ring_pg, 2, 1)
     if rank == 0:
         print("#" * 30)
         print("# ds-ulysses forward:")

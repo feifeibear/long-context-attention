@@ -1,7 +1,7 @@
 import torch
 import torch.distributed as dist
-from long_context_attn import LongContextAttentionQKVPacked, set_seq_parallel_pg
-from long_context_attn.utils import RING_IMPL_QKVPACKED_DICT
+from yunchang import LongContextAttentionQKVPacked, set_seq_parallel_pg
+from yunchang import RING_IMPL_QKVPACKED_DICT
 
 
 def log(msg, a, rank0_only=False):

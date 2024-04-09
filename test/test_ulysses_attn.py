@@ -1,6 +1,6 @@
 import torch
 import torch.distributed as dist
-from ds_ulysses_attn.attn_layer import UlyssesAttention
+from yunchang import UlyssesAttention
 
 from flash_attn import flash_attn_func
 
