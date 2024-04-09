@@ -25,7 +25,7 @@ class UlyssesAttention(torch.nn.Module):
 
     def __init__(
         self,
-        sequence_process_group: dist.ProcessGroup,
+        sequence_process_group: dist.ProcessGroup = None,
         scatter_idx: int = 2,
         gather_idx: int = 1,
     ) -> None:
@@ -70,7 +70,7 @@ class UlyssesAttention(torch.nn.Module):
         k = SeqAllToAll4D.apply(self.spg, key, self.scatter_idx, self.gather_idx)
         v = SeqAllToAll4D.apply(self.spg, value, self.scatter_idx, self.gather_idx)
 
-        context_layer, _, _ = flash_attn_func(
+        context_layer = flash_attn_func(
             q,
             k,
             v,
@@ -81,6 +81,9 @@ class UlyssesAttention(torch.nn.Module):
             deterministic=deterministic,
             return_attn_probs=return_attn_probs,
         )
+
+        if  isinstance(context_layer, tuple):
+            context_layer = context_layer[0]
 
         # (bs, seq_len, head_cnt/N, head_size) -> (bs, seq_len/N, head_cnt, head_size)
         # scatter 1, gather 2
