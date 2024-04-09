@@ -1,5 +1,5 @@
 from ring_flash_attn.ring_flash_attn import ring_flash_attn_func
-from long_context_attn.attn_layer import (
+from yunchang import (
     LongContextAttention,
     LongContextAttentionQKVPacked,
 )

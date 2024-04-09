@@ -1,7 +1,7 @@
 from flash_attn import flash_attn_qkvpacked_func
 import torch
 import torch.distributed as dist
-from ring_flash_attn import (
+from yunchang import (
     ring_flash_attn_qkvpacked_func,
     zigzag_ring_flash_attn_qkvpacked_func,
     stripe_flash_attn_qkvpacked_func,

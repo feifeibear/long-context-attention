@@ -1,6 +1,6 @@
 import torch
 import torch.distributed as dist
-from long_context_attn import LongContextAttention, set_seq_parallel_pg
+from yunchang import LongContextAttention, set_seq_parallel_pg
 import torch.cuda
 import argparse
 

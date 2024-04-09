@@ -1,4 +1,4 @@
-from ds_ulysses_attn.utils import SeqAllToAll4D, SeqAllToAll5D
+from ulysses.utils import SeqAllToAll4D, SeqAllToAll5D
 
 import torch
 

@@ -1,7 +1,7 @@
 from flash_attn import flash_attn_varlen_qkvpacked_func
 import torch
 import torch.distributed as dist
-from long_context_attn import LongContextAttentionQKVPacked, set_seq_parallel_pg
+from yunchang import LongContextAttentionQKVPacked, set_seq_parallel_pg
 import torch.cuda
 
 import argparse
