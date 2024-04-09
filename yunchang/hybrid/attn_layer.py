@@ -1,4 +1,4 @@
-from ulysses.utils import SeqAllToAll4D, SeqAllToAll5D
+from yunchang.ulysses.utils import SeqAllToAll4D, SeqAllToAll5D
 
 import torch
 
@@ -6,7 +6,7 @@ from typing import Any
 from torch import Tensor
 
 import torch.distributed as dist
-from long_context_attn.utils import RING_IMPL_DICT, RING_IMPL_QKVPACKED_DICT
+from .utils import RING_IMPL_DICT, RING_IMPL_QKVPACKED_DICT
 
 
 class LongContextAttention(torch.nn.Module):
@@ -177,7 +177,7 @@ class LongContextAttentionQKVPacked(torch.nn.Module):
         # print(f"out {out.shape}")
 
         if type(out) == tuple:
-            out, _, _ = out
+            out = out[0]
 
         # (bs, seq_len, head_cnt/N, head_size) -> (bs, seq_len/N, head_cnt, head_size)
         # scatter 1, gather 2

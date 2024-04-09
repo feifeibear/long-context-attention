@@ -1,9 +1,9 @@
 import torch
-from ring_flash_attn.utils import (
+from yunchang.ring.utils import (
     flatten_varlen_lse,
     unflatten_varlen_lse,
 )
-from ring_flash_attn.triton_utils import (
+from yunchang.ring.triton_utils import (
     flatten_varlen_lse as triton_flatten_varlen_lse,
     unflatten_varlen_lse as triton_unflatten_varlen_lse,
 )

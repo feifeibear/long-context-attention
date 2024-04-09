@@ -1,7 +1,7 @@
 from flash_attn import flash_attn_varlen_qkvpacked_func
 import torch
 import torch.distributed as dist
-from ring_flash_attn import ring_flash_attn_varlen_qkvpacked_func
+from yunchang import ring_flash_attn_varlen_qkvpacked_func
 
 
 def log(msg, a, rank0_only=False):
