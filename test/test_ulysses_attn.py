@@ -41,7 +41,7 @@ if __name__ == "__main__":
 
     batch_size = 2
     seqlen = 3816
-    nheads = 4
+    nheads = 8
     d = 128
     dropout_p = 0
     causal = True
@@ -77,7 +77,7 @@ if __name__ == "__main__":
     local_dout = dout.chunk(world_size, dim=1)[rank].detach().clone()
 
     # prcess_group == sequence_process_group
-    sp_pg = dist.new_group(ranks=[i for i in range(world_size)])
+    sp_pg = None #dist.new_group(ranks=[i for i in range(world_size)])
 
     dist_attn = UlyssesAttention(sp_pg)
 
