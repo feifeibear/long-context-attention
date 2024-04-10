@@ -7,7 +7,7 @@ from torch import Tensor
 
 import torch.distributed as dist
 from .utils import RING_IMPL_DICT, RING_IMPL_QKVPACKED_DICT
-
+from yunchang.globals import PROCESS_GROUP
 
 class LongContextAttention(torch.nn.Module):
     """Initialization.
@@ -21,17 +21,16 @@ class LongContextAttention(torch.nn.Module):
 
     def __init__(
         self,
-        ulysses_pg: dist.ProcessGroup,
-        ring_pg: dist.ProcessGroup,
         scatter_idx: int = 2,
         gather_idx: int = 1,
         ring_impl_type: str = "basic",
     ) -> None:
 
         super(LongContextAttention, self).__init__()
+        self.ring_pg = PROCESS_GROUP.RING_PG
+        self.ulysses_pg = PROCESS_GROUP.ULYSSES_PG
 
-        self.ring_pg = ring_pg
-        self.ulysses_pg = ulysses_pg
+        assert self.ulysses_pg is not None or self.ring_pg is not None, f"use set_seq_parallel_pg() first. Now ulysses pg {self.ulysses_pg} and ring pg {self.ring_pg}"
         self.scatter_idx = scatter_idx
         self.gather_idx = gather_idx
         self.ring_attn_fn = RING_IMPL_DICT[ring_impl_type]
@@ -100,7 +99,6 @@ class LongContextAttention(torch.nn.Module):
         # out e.g., [s/p::h]
         return output
 
-
 class LongContextAttentionQKVPacked(torch.nn.Module):
     """Initialization.
 
@@ -113,8 +111,6 @@ class LongContextAttentionQKVPacked(torch.nn.Module):
 
     def __init__(
         self,
-        ulysses_pg: dist.ProcessGroup,
-        ring_pg: dist.ProcessGroup,
         scatter_idx: int = 3,
         gather_idx: int = 1,
         ring_impl_type: str = "basic",
@@ -122,8 +118,10 @@ class LongContextAttentionQKVPacked(torch.nn.Module):
 
         super(LongContextAttentionQKVPacked, self).__init__()
 
-        self.ring_pg = ring_pg
-        self.ulysses_pg = ulysses_pg
+        self.ring_pg = PROCESS_GROUP.RING_PG
+        self.ulysses_pg = PROCESS_GROUP.ULYSSES_PG
+
+        assert self.ulysses_pg is not None or self.ring_pg is not None, f"use set_seq_parallel_pg() first. Now ulysses pg {self.ulysses_pg} and ring pg {self.ring_pg}"
         self.scatter_idx = scatter_idx
         self.gather_idx = gather_idx
 

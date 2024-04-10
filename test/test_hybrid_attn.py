@@ -5,7 +5,7 @@ from yunchang import (
 )
 import torch
 import torch.distributed as dist
-from long_context_attn import set_seq_parallel_pg
+from yunchang import set_seq_parallel_pg
 from flash_attn import flash_attn_func
 
 
@@ -90,11 +90,12 @@ if __name__ == "__main__":
         f"rank {rank}, sp_ulysses_degree: {sp_ulysses_degree}, sp_ring_degree: {sp_ring_degree}"
     )
 
-    ulysses_pg, ring_pg = set_seq_parallel_pg(
+    set_seq_parallel_pg(
         sp_ulysses_degree, sp_ring_degree, rank, world_size
     )
 
-    hybrid_seq_parallel_attn = LongContextAttention(ulysses_pg, ring_pg, 2, 1)
+    hybrid_seq_parallel_attn = LongContextAttention()
+    
     if rank == 0:
         print("#" * 30)
         print("# ds-ulysses forward:")

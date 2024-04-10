@@ -40,7 +40,7 @@ def test(ring_impl_type="basic"):
 
     batch_size = 2
     seqlen = 3816
-    nheads = 1
+    nheads = 2
     d = 128
     dropout_p = 0
     causal = True
@@ -52,11 +52,11 @@ def test(ring_impl_type="basic"):
     sp_ulysses_degree = min(world_size, nheads)
     sp_ring_degree = world_size // sp_ulysses_degree
 
-    ulysses_pg, ring_pg = set_seq_parallel_pg(
+    set_seq_parallel_pg(
         sp_ulysses_degree, sp_ring_degree, rank, world_size
     )
     longctx_attn = LongContextAttentionQKVPacked(
-        ulysses_pg, ring_pg, ring_impl_type=ring_impl_type
+        ring_impl_type=ring_impl_type
     )
 
     qkv = torch.randn(

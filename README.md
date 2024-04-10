@@ -22,7 +22,7 @@ LongContextAttention is compatible with the other parallel strategies, such as T
 ### Test
 
 ```bash
-torchrun --nproc_per_node 8 test/test_long_context_qkvpacked_attn.py
+torchrun --nproc_per_node 8 test/test_hybrid_qkvpacked_attn.py
 ```
 
 ### Benchmark
