@@ -4,7 +4,7 @@ from yunchang import LongContextAttention, set_seq_parallel_pg
 import torch.cuda
 import argparse
 
-parser = argparse.ArgumentParser(description="Process some integers.")
+parser = argparse.ArgumentParser(description="args for benchmark.")
 
 parser.add_argument(
     "--ring_impl_type",
@@ -74,6 +74,19 @@ def benchmark(num_iter=100, forward_only=True, log=True):
     )
     longctx_attn = LongContextAttention()
 
+    out = longctx_attn(
+                        q,
+                        k,
+                        v,
+                        dropout_p=dropout_p,
+                        causal=causal,
+                        window_size=(-1, -1),
+                        alibi_slopes=None,
+                        deterministic=deterministic,
+                        return_attn_probs=False,
+                    )
+    out.backward(dout)
+    
     begin = torch.cuda.Event(enable_timing=True)
     begin.record()
 
@@ -109,13 +122,15 @@ def benchmark(num_iter=100, forward_only=True, log=True):
                 return_attn_probs=False,
             )
             out.backward(dout)
+    
     end = torch.cuda.Event(enable_timing=True)
     end.record()
+
     torch.cuda.synchronize(device=device)
     time = begin.elapsed_time(end) / 1000.0
 
     if rank == 0 and log:
-        print(f"{num_iter / time:.3f} iter/s, {time:.3f} sec")
+        color_print(f"{num_iter / time:.3f} iter/s, {time:.3f} sec")
 
 
 if __name__ == "__main__":

@@ -6,7 +6,7 @@ import torch.cuda
 
 import argparse
 
-parser = argparse.ArgumentParser(description="Process some integers.")
+parser = argparse.ArgumentParser(description="args for benchmark.")
 
 parser.add_argument(
     "--ring_impl_type",

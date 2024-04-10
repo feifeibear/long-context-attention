@@ -1,7 +1,7 @@
-# Long-Context-Attention (YunChang): Distributed Attention Implementations for Long Context LLM Model Training and Inference
+# Long-Context-Attention (YunChang-云长): Distributed Attention Implementations for Long Context LLM Model Training and Inference
 
 <p align="center">
-    <img src="./media/yun_chang.jpg" width="114" />
+    <img src="./media/yun_chang.jpg" width="200" />
 </p>
 
 This repo provides a distributed sequence parallel approaches called Long-Context-Attention. It synergizes the strengths of two popular distributed attentions, i.e. DeepSpeed-Ulysses-Attention and Ring-Attention, delivering a superior performance that outshines its predecessors.
