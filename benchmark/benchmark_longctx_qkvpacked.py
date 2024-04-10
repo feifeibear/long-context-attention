@@ -1,7 +1,7 @@
 from flash_attn import flash_attn_varlen_qkvpacked_func
 import torch
 import torch.distributed as dist
-from yunchang import LongContextAttentionQKVPacked, set_seq_parallel_pg
+from yunchang import set_seq_parallel_pg, LongContextAttentionQKVPacked
 import torch.cuda
 
 import argparse
@@ -65,11 +65,11 @@ def benchmark(num_iter=100, forward_only=True, log=True):
     sp_ulysses_degree = min(args.ulysses_degree, world_size)
     sp_ring_degree = world_size // sp_ulysses_degree
 
-    ulysses_pg, ring_pg = set_seq_parallel_pg(
+    set_seq_parallel_pg(
         sp_ulysses_degree, sp_ring_degree, rank, world_size, args.use_ulysses_lowdim
     )
 
-    longctx_attn = LongContextAttentionQKVPacked(ulysses_pg, ring_pg)
+    longctx_attn = LongContextAttentionQKVPacked()
 
     longctx_attn(
         qkv,

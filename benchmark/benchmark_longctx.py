@@ -69,11 +69,10 @@ def benchmark(num_iter=100, forward_only=True, log=True):
     sp_ulysses_degree = min(args.ulysses_degree, world_size)
     sp_ring_degree = world_size // sp_ulysses_degree
 
-    ulysses_pg, ring_pg = set_seq_parallel_pg(
+    set_seq_parallel_pg(
         sp_ulysses_degree, sp_ring_degree, rank, world_size, args.use_ulysses_lowdim
     )
-
-    longctx_attn = LongContextAttention(ulysses_pg, ring_pg)
+    longctx_attn = LongContextAttention()
 
     begin = torch.cuda.Event(enable_timing=True)
     begin.record()
