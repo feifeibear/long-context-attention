@@ -1,7 +1,5 @@
-from ring_flash_attn.ring_flash_attn import ring_flash_attn_func
 from yunchang import (
     LongContextAttention,
-    LongContextAttentionQKVPacked,
 )
 import torch
 import torch.distributed as dist
