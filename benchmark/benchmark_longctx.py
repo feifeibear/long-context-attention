@@ -14,6 +14,9 @@ parser.add_argument(
     help="ring attn implementation type",
 )
 parser.add_argument("--nheads", type=int, default=2, help="head number")
+parser.add_argument("--head_size", type=int, default=128, help="head size")
+parser.add_argument("--seq_len", type=int, default=4 * 1024, help="sequence length")
+parser.add_argument("--group_num", type=int, default=1, help="group number")
 parser.add_argument("--batch_size", type=int, default=2, help="batch size")
 parser.add_argument(
     "--fwd_only", action="store_true", help="benchmark forward pass only"
@@ -34,7 +37,6 @@ parser.add_argument(
 args = parser.parse_args()
 
 
-
 def color_print(text):
     print("\033[91m {}\033[00m".format(text))
 
@@ -46,24 +48,44 @@ def benchmark(num_iter=100, forward_only=True, log=True):
     device = torch.device(f"cuda:{rank}")
     torch.cuda.set_device(device)
 
-    batch_size = 1
-    seqlen = 1024 * 8
+    batch_size = args.batch_size
+    seqlen = args.seq_len
     nheads = args.nheads
-    d = 128
+    group_num = args.group_num
+    d = args.head_size
+
     dropout_p = 0
     causal = True
     deterministic = False
 
-    assert seqlen % (2 * world_size) == 0
+    assert seqlen % (2 * world_size) == 0, f"seqlen {seqlen} world_size {world_size}"
     assert d % 8 == 0
+    assert nheads % group_num == 0, f"nheads {nheads} group_num {group_num}"
+    assert (
+        nheads // group_num % args.ulysses_degree == 0
+    ), f"nheads {nheads}, group_num {group_num}, ulysses_degree {args.ulysses_degree}"
 
-    q, k, v = torch.randn(
-        3, batch_size, seqlen, nheads, d, device=device, dtype=dtype, requires_grad=True
-    ).chunk(3, dim=0)
-    q = q.squeeze(0)
-    k = k.squeeze(0)
-    v = v.squeeze(0)
-
+    q = torch.randn(
+        batch_size, seqlen, nheads, d, device=device, dtype=dtype, requires_grad=True
+    )
+    k = torch.randn(
+        batch_size,
+        seqlen,
+        nheads // group_num,
+        d,
+        device=device,
+        dtype=dtype,
+        requires_grad=True,
+    )
+    v = torch.randn(
+        batch_size,
+        seqlen,
+        nheads // group_num,
+        d,
+        device=device,
+        dtype=dtype,
+        requires_grad=True,
+    )
     dout = torch.randn(batch_size, seqlen, nheads, d, device=device, dtype=dtype)
 
     sp_ulysses_degree = min(args.ulysses_degree, world_size)
@@ -72,21 +94,21 @@ def benchmark(num_iter=100, forward_only=True, log=True):
     set_seq_parallel_pg(
         sp_ulysses_degree, sp_ring_degree, rank, world_size, args.use_ulysses_lowdim
     )
-    longctx_attn = LongContextAttention()
+    longctx_attn = LongContextAttention(ring_impl_type=args.ring_impl_type)
 
     out = longctx_attn(
-                        q,
-                        k,
-                        v,
-                        dropout_p=dropout_p,
-                        causal=causal,
-                        window_size=(-1, -1),
-                        alibi_slopes=None,
-                        deterministic=deterministic,
-                        return_attn_probs=False,
-                    )
+        q,
+        k,
+        v,
+        dropout_p=dropout_p,
+        causal=causal,
+        window_size=(-1, -1),
+        alibi_slopes=None,
+        deterministic=deterministic,
+        return_attn_probs=False,
+    )
     out.backward(dout)
-    
+
     begin = torch.cuda.Event(enable_timing=True)
     begin.record()
 
@@ -122,7 +144,7 @@ def benchmark(num_iter=100, forward_only=True, log=True):
                 return_attn_probs=False,
             )
             out.backward(dout)
-    
+
     end = torch.cuda.Event(enable_timing=True)
     end.record()
 
@@ -142,7 +164,7 @@ if __name__ == "__main__":
     torch.cuda.empty_cache()
     if rank == 0:
         color_print(
-            f"# long context attention. ulysses_degree : {args.ulysses_degree} fwd_only {forward_only} use_ulysses_lowdim {args.use_ulysses_lowdim}"
+            f"# long context attention {args.ring_impl_type}. ulysses_degree : {args.ulysses_degree} fwd_only {forward_only} use_ulysses_lowdim {args.use_ulysses_lowdim}"
         )
     torch.cuda.empty_cache()
     benchmark(forward_only=forward_only, log=False)

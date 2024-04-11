@@ -16,6 +16,8 @@ parser.add_argument(
     help="ring attn implementation type",
 )
 parser.add_argument("--nheads", type=int, default=2, help="head number")
+parser.add_argument("--head_size", type=int, default=128, help="head number")
+parser.add_argument("--seq_len", type=int, default=4 * 1024, help="head number")
 parser.add_argument("--batch_size", type=int, default=2, help="batch size")
 parser.add_argument(
     "--fwd_only", action="store_true", help="benchmark forward pass only"
@@ -47,14 +49,15 @@ def benchmark(num_iter=100, forward_only=True, log=True):
     torch.cuda.set_device(device)
 
     batch_size = args.batch_size
-    seqlen = 1024 * 8
+    seqlen = args.seq_len
     nheads = args.nheads
-    d = 128
+    d = args.head_size
+
     dropout_p = 0
     causal = True
     deterministic = False
 
-    assert seqlen % (2 * world_size) == 0
+    assert seqlen % (2 * world_size) == 0, f"seqlen {seqlen} world_size {world_size}"
     assert d % 8 == 0
 
     qkv = torch.randn(
@@ -69,7 +72,7 @@ def benchmark(num_iter=100, forward_only=True, log=True):
         sp_ulysses_degree, sp_ring_degree, rank, world_size, args.use_ulysses_lowdim
     )
 
-    longctx_attn = LongContextAttentionQKVPacked()
+    longctx_attn = LongContextAttentionQKVPacked(ring_impl_type=args.ring_impl_type)
 
     longctx_attn(
         qkv,

@@ -1,10 +1,10 @@
-from flash_attn import flash_attn_qkvpacked_func
+from flash_attn import flash_attn_func
 import torch
 import torch.distributed as dist
 from yunchang import (
-    ring_flash_attn_qkvpacked_func,
-    zigzag_ring_flash_attn_qkvpacked_func,
-    stripe_flash_attn_qkvpacked_func,
+    ring_flash_attn_func,
+    zigzag_ring_flash_attn_func,
+    stripe_flash_attn_func,
 )
 import torch.cuda
 
@@ -15,6 +15,7 @@ parser = argparse.ArgumentParser(description="Process some integers.")
 parser.add_argument("--nheads", type=int, default=2, help="head number")
 parser.add_argument("--head_size", type=int, default=128, help="head number")
 parser.add_argument("--seq_len", type=int, default=4 * 1024, help="head number")
+parser.add_argument("--group_num", type=int, default=1, help="group number")
 parser.add_argument("--batch_size", type=int, default=2, help="batch size")
 parser.add_argument(
     "--fwd_only", action="store_true", help="benchmark forward pass only"
@@ -38,6 +39,7 @@ def benchmark(f, num_iter=100, forward_only=True, log=True):
     seqlen = args.seq_len
     nheads = args.nheads
     d = args.head_size
+    group_num = args.group_num
 
     dropout_p = 0
     causal = True
@@ -45,14 +47,35 @@ def benchmark(f, num_iter=100, forward_only=True, log=True):
 
     assert seqlen % (2 * world_size) == 0, f"seqlen {seqlen} world_size {world_size}"
     assert d % 8 == 0
+    assert nheads % group_num == 0, f"nheads {nheads} group_num {group_num}"
 
-    qkv = torch.randn(
-        batch_size, seqlen, 3, nheads, d, device=device, dtype=dtype, requires_grad=True
+    q = torch.randn(
+        batch_size, seqlen, nheads, d, device=device, dtype=dtype, requires_grad=True
+    )
+    k = torch.randn(
+        batch_size,
+        seqlen,
+        nheads // group_num,
+        d,
+        device=device,
+        dtype=dtype,
+        requires_grad=True,
+    )
+    v = torch.randn(
+        batch_size,
+        seqlen,
+        nheads // group_num,
+        d,
+        device=device,
+        dtype=dtype,
+        requires_grad=True,
     )
     dout = torch.randn(batch_size, seqlen, nheads, d, device=device, dtype=dtype)
 
     _ = f(
-        qkv,
+        q,
+        k,
+        v,
         dropout_p=dropout_p,
         causal=causal,
         window_size=(-1, -1),
@@ -61,7 +84,9 @@ def benchmark(f, num_iter=100, forward_only=True, log=True):
         return_attn_probs=False,
     )
     out = f(
-        qkv,
+        q,
+        k,
+        v,
         dropout_p=dropout_p,
         causal=causal,
         window_size=(-1, -1),
@@ -78,7 +103,9 @@ def benchmark(f, num_iter=100, forward_only=True, log=True):
         with torch.no_grad():
             for _ in range(num_iter):
                 _ = f(
-                    qkv,
+                    q,
+                    k,
+                    v,
                     dropout_p=dropout_p,
                     causal=causal,
                     window_size=(-1, -1),
@@ -89,9 +116,13 @@ def benchmark(f, num_iter=100, forward_only=True, log=True):
 
     else:
         for _ in range(num_iter):
-            qkv.grad = None
+            q.grad = None
+            k.grad = None
+            v.grad = None
             out = f(
-                qkv,
+                q,
+                k,
+                v,
                 dropout_p=dropout_p,
                 causal=causal,
                 window_size=(-1, -1),
@@ -116,10 +147,10 @@ if __name__ == "__main__":
     forward_only = args.fwd_only
 
     for f in [
-        flash_attn_qkvpacked_func,
-        ring_flash_attn_qkvpacked_func,
-        zigzag_ring_flash_attn_qkvpacked_func,
-        stripe_flash_attn_qkvpacked_func,
+        flash_attn_func,
+        ring_flash_attn_func,
+        zigzag_ring_flash_attn_func,
+        stripe_flash_attn_func,
     ]:
         torch.cuda.empty_cache()
         if rank == 0:
