@@ -68,7 +68,16 @@ In the figure presented below, we contrast the performance of LongContextAttenti
 
 The best throughput is achieved when `ulysses_degree`=2 and ring_attn_impl as `zigzag`. We observed 18% and 31% throughput improvement for FWD+BWD and FWD-only.
 
-![head=8](./media/long_ctx_h2.png)
+![head=2](./media/long_ctx_h2.png)
+
+
+- GQA, head_num=64, group_num=8, seqlen=4K. Reproduce by running [./scripts/run_gqa.sh](./scripts/run_gqa.sh)
+
+
+The best throughput is achieved when `ulysses_degree`=8 and ring_attn_impl as `zigzag`. We observed 15% and 11% throughput improvement for FWD+BWD and FWD-only.
+
+
+![gqa](./media/gqa.png)
 
 ## Ulysses Attention
 This repository re-implements the all-to-all communication functions and supports QKV packed together, following the principles of [DeepSpeed-Ulysses](https://github.com/microsoft/DeepSpeed/blob/master/blogs/deepspeed-ulysses/README.md).

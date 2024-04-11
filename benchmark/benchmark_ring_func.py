@@ -1,37 +1,24 @@
+from flash_attn import flash_attn_func
 import torch
 import torch.distributed as dist
-from yunchang import LongContextAttention, set_seq_parallel_pg
+from yunchang import (
+    ring_flash_attn_func,
+    zigzag_ring_flash_attn_func,
+    stripe_flash_attn_func,
+)
 import torch.cuda
+
 import argparse
 
-parser = argparse.ArgumentParser(description="args for benchmark.")
+parser = argparse.ArgumentParser(description="Process some integers.")
 
-parser.add_argument(
-    "--ring_impl_type",
-    type=str,
-    default="basic",
-    choices=["basic", "zigzag", "strip"],
-    help="ring attn implementation type",
-)
 parser.add_argument("--nheads", type=int, default=2, help="head number")
-parser.add_argument("--head_size", type=int, default=128, help="head size")
-parser.add_argument("--seq_len", type=int, default=4 * 1024, help="sequence length")
+parser.add_argument("--head_size", type=int, default=128, help="head number")
+parser.add_argument("--seq_len", type=int, default=4 * 1024, help="head number")
 parser.add_argument("--group_num", type=int, default=1, help="group number")
 parser.add_argument("--batch_size", type=int, default=2, help="batch size")
 parser.add_argument(
     "--fwd_only", action="store_true", help="benchmark forward pass only"
-)
-parser.add_argument(
-    "--use_ulysses_lowdim",
-    action="store_true",
-    default=True,
-    help="ulysses process group on low dimension",
-)
-parser.add_argument(
-    "--ulysses_degree",
-    type=int,
-    default=1,
-    help="ulysses attention sequence parallel degree",
 )
 
 args = parser.parse_args()
@@ -41,7 +28,7 @@ def color_print(text):
     print("\033[91m {}\033[00m".format(text))
 
 
-def benchmark(num_iter=100, forward_only=True, log=True):
+def benchmark(f, num_iter=100, forward_only=True, log=True):
     dtype = torch.bfloat16
     rank = dist.get_rank()
     world_size = dist.get_world_size()
@@ -51,8 +38,8 @@ def benchmark(num_iter=100, forward_only=True, log=True):
     batch_size = args.batch_size
     seqlen = args.seq_len
     nheads = args.nheads
-    group_num = args.group_num
     d = args.head_size
+    group_num = args.group_num
 
     dropout_p = 0
     causal = True
@@ -61,9 +48,6 @@ def benchmark(num_iter=100, forward_only=True, log=True):
     assert seqlen % (2 * world_size) == 0, f"seqlen {seqlen} world_size {world_size}"
     assert d % 8 == 0
     assert nheads % group_num == 0, f"nheads {nheads} group_num {group_num}"
-    assert (
-        nheads // group_num % args.ulysses_degree == 0
-    ), f"nheads {nheads}, group_num {group_num}, ulysses_degree {args.ulysses_degree}"
 
     q = torch.randn(
         batch_size, seqlen, nheads, d, device=device, dtype=dtype, requires_grad=True
@@ -88,15 +72,7 @@ def benchmark(num_iter=100, forward_only=True, log=True):
     )
     dout = torch.randn(batch_size, seqlen, nheads, d, device=device, dtype=dtype)
 
-    sp_ulysses_degree = min(args.ulysses_degree, world_size)
-    sp_ring_degree = world_size // sp_ulysses_degree
-
-    set_seq_parallel_pg(
-        sp_ulysses_degree, sp_ring_degree, rank, world_size, args.use_ulysses_lowdim
-    )
-    longctx_attn = LongContextAttention(ring_impl_type=args.ring_impl_type)
-
-    out = longctx_attn(
+    _ = f(
         q,
         k,
         v,
@@ -107,9 +83,7 @@ def benchmark(num_iter=100, forward_only=True, log=True):
         deterministic=deterministic,
         return_attn_probs=False,
     )
-    out.backward(dout)
-
-    out = longctx_attn(
+    out = f(
         q,
         k,
         v,
@@ -128,7 +102,7 @@ def benchmark(num_iter=100, forward_only=True, log=True):
     if forward_only:
         with torch.no_grad():
             for _ in range(num_iter):
-                _ = longctx_attn(
+                _ = f(
                     q,
                     k,
                     v,
@@ -145,7 +119,7 @@ def benchmark(num_iter=100, forward_only=True, log=True):
             q.grad = None
             k.grad = None
             v.grad = None
-            out = longctx_attn(
+            out = f(
                 q,
                 k,
                 v,
@@ -159,7 +133,6 @@ def benchmark(num_iter=100, forward_only=True, log=True):
             out.backward(dout)
     end = torch.cuda.Event(enable_timing=True)
     end.record()
-
     torch.cuda.synchronize(device=device)
     time = begin.elapsed_time(end) / 1000.0
 
@@ -173,11 +146,14 @@ if __name__ == "__main__":
 
     forward_only = args.fwd_only
 
-    torch.cuda.empty_cache()
-    if rank == 0:
-        color_print(
-            f"# long context attention {args.ring_impl_type}. ulysses_degree : {args.ulysses_degree} fwd_only {forward_only} use_ulysses_lowdim {args.use_ulysses_lowdim}"
-        )
-    torch.cuda.empty_cache()
-    benchmark(forward_only=forward_only, log=False)
-    benchmark(forward_only=forward_only, log=True)
+    for f in [
+        flash_attn_func,
+        ring_flash_attn_func,
+        zigzag_ring_flash_attn_func,
+        stripe_flash_attn_func,
+    ]:
+        torch.cuda.empty_cache()
+        if rank == 0:
+            color_print(f"# {f.__name__} fwd_only {forward_only}")
+        benchmark(f, forward_only=forward_only, log=False)
+        benchmark(f, forward_only=forward_only, log=True)
