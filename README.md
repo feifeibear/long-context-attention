@@ -47,7 +47,7 @@ The following two pictures demonstrate the throughput (iters/sec) of different s
 Note that no-comm is a flash-attention version that conducts flash-attn locally without communications. 
 It can be viewed as the upper bound of the sequence parallel implementation.
 
-- head num=8, local seqlen=8K (global seqlen=32K)
+- head num=8, local seqlen=8K (global seqlen=64K)
 
 The throughput (iters/sec) of different LongContextAttention settings (ring_degree x ulysses_degree) is shown in the following table. 
 We observed that the best throughput is achieved when `ulysses_degree`=4 and ring_attn_impl as `strip`.
