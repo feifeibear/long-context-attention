@@ -58,7 +58,8 @@ def all_to_all_4D(
         # (seq_len, bs, hc/P, hs) -reshape-> (bs, seq_len, hc/P, hs)
         output = output.transpose(0, 1).contiguous()
 
-        return output.reshape(bs, seqlen, shard_hc, hs).contiguous()
+        return output.reshape(bs, seqlen, shard_hc, hs)
+
     elif scatter_idx == 1 and gather_idx == 2:
         # input (torch.tensor): a tensor sharded along dim 1 (bs, seqlen, hc/P, hs) output: (bs, seqlen/P, hc, hs)
         bs, seqlen, shard_hc, hs = input.shape
@@ -87,7 +88,7 @@ def all_to_all_4D(
         # (hc, seqlen/N, bs, hs) -tranpose(0,2)-> (bs, seqlen/N, hc, hs)
         output = output.transpose(0, 2).contiguous()
 
-        return output.reshape(bs, shard_seqlen, hc, hs).contiguous()
+        return output.reshape(bs, shard_seqlen, hc, hs)
     else:
         raise RuntimeError("scatter_idx must be 1 or 2 and gather_idx must be 1 or 2")
 
