@@ -28,10 +28,22 @@ parser.add_argument(
     help="ulysses process group on low dimension",
 )
 parser.add_argument(
+    "--use_qkvpack",
+    action="store_true",
+    default=False,
+    help="pack qkv before all-to-all",
+)
+parser.add_argument(
     "--ulysses_degree",
     type=int,
     default=1,
     help="ulysses attention sequence parallel degree",
+)
+parser.add_argument(
+    "--use_profiler",
+    action="store_true",
+    default=False,
+    help="use torch profiler",
 )
 
 args = parser.parse_args()
@@ -41,7 +53,28 @@ def color_print(text):
     print("\033[91m {}\033[00m".format(text))
 
 
-def benchmark(num_iter=100, forward_only=True, log=True):
+def init_prof(use_profiler):
+    activities = []
+    # activities.append(torch.profiler.ProfilerActivity.CPU)
+    activities.append(torch.profiler.ProfilerActivity.CUDA)
+
+    from contextlib import nullcontext
+
+    ctx = (
+        torch.profiler.profile(
+            activities=activities,
+            schedule=torch.profiler.schedule(wait=0, warmup=2, active=4, repeat=1),
+            on_trace_ready=torch.profiler.tensorboard_trace_handler("./profile/"),
+            record_shapes=True,
+            with_stack=True,
+        )
+        if use_profiler
+        else nullcontext()
+    )
+    return ctx
+
+
+def benchmark(num_iter=100, forward_only=True, log=True, profile=False):
     dtype = torch.bfloat16
     rank = dist.get_rank()
     world_size = dist.get_world_size()
@@ -94,7 +127,9 @@ def benchmark(num_iter=100, forward_only=True, log=True):
     set_seq_parallel_pg(
         sp_ulysses_degree, sp_ring_degree, rank, world_size, args.use_ulysses_lowdim
     )
-    longctx_attn = LongContextAttention(ring_impl_type=args.ring_impl_type)
+    longctx_attn = LongContextAttention(
+        ring_impl_type=args.ring_impl_type, use_pack_qkv=args.use_qkvpack
+    )
 
     out = longctx_attn(
         q,
@@ -125,10 +160,34 @@ def benchmark(num_iter=100, forward_only=True, log=True):
     begin = torch.cuda.Event(enable_timing=True)
     begin.record()
 
-    if forward_only:
-        with torch.no_grad():
+    ctx = init_prof(profile)
+
+    with ctx as prof:
+        if forward_only:
+            with torch.no_grad():
+                for _ in range(num_iter):
+                    _ = longctx_attn(
+                        q,
+                        k,
+                        v,
+                        dropout_p=dropout_p,
+                        causal=causal,
+                        window_size=(-1, -1),
+                        alibi_slopes=None,
+                        deterministic=deterministic,
+                        return_attn_probs=False,
+                    )
+
+                    torch.cuda.synchronize(device=device)
+
+                    if profile:
+                        prof.step()
+        else:
             for _ in range(num_iter):
-                _ = longctx_attn(
+                q.grad = None
+                k.grad = None
+                v.grad = None
+                out = longctx_attn(
                     q,
                     k,
                     v,
@@ -139,32 +198,19 @@ def benchmark(num_iter=100, forward_only=True, log=True):
                     deterministic=deterministic,
                     return_attn_probs=False,
                 )
+                out.backward(dout)
 
-    else:
-        for _ in range(num_iter):
-            q.grad = None
-            k.grad = None
-            v.grad = None
-            out = longctx_attn(
-                q,
-                k,
-                v,
-                dropout_p=dropout_p,
-                causal=causal,
-                window_size=(-1, -1),
-                alibi_slopes=None,
-                deterministic=deterministic,
-                return_attn_probs=False,
-            )
-            out.backward(dout)
+                if profile:
+                    prof.step()
+
     end = torch.cuda.Event(enable_timing=True)
     end.record()
 
     torch.cuda.synchronize(device=device)
-    time = begin.elapsed_time(end) / 1000.0
+    elapse = begin.elapsed_time(end) / 1000.0
 
     if rank == 0 and log:
-        color_print(f"{num_iter / time:.3f} iter/s, {time:.3f} sec")
+        color_print(f"{num_iter / elapse:.3f} iter/s, {elapse:.3f} sec")
 
 
 if __name__ == "__main__":
@@ -176,8 +222,10 @@ if __name__ == "__main__":
     torch.cuda.empty_cache()
     if rank == 0:
         color_print(
-            f"# long context attention {args.ring_impl_type}. ulysses_degree : {args.ulysses_degree} fwd_only {forward_only} use_ulysses_lowdim {args.use_ulysses_lowdim}"
+            f"# long context attention {args.ring_impl_type}. "
+            f"ulysses_degree : {args.ulysses_degree} fwd_only {forward_only} use_ulysses_lowdim {args.use_ulysses_lowdim}. "
+            f"use_qkvpack: {args.use_qkvpack}"
         )
     torch.cuda.empty_cache()
     benchmark(forward_only=forward_only, log=False)
-    benchmark(forward_only=forward_only, log=True)
+    benchmark(forward_only=forward_only, log=True, profile=args.use_profiler)

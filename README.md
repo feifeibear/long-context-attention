@@ -47,7 +47,7 @@ The following two pictures demonstrate the throughput (iters/sec) of different s
 Note that no-comm is a flash-attention version that conducts flash-attn locally without communications. 
 It can be viewed as the upper bound of the sequence parallel implementation.
 
-- head num=8
+- head num=8, local seqlen=8K (global seqlen=32K)
 
 The throughput (iters/sec) of different LongContextAttention settings (ring_degree x ulysses_degree) is shown in the following table. 
 We observed that the best throughput is achieved when `ulysses_degree`=4 and ring_attn_impl as `strip`.
@@ -64,14 +64,14 @@ In the figure presented below, we contrast the performance of LongContextAttenti
 
 ![head=8](./media/long_ctx_h8.png)
 
-- head num=2, note that Ulysses degree is limited to <=2.
+- head num=2, note that Ulysses degree is limited to <=2, local seqlen=8K (global seqlen=32K)
 
 The best throughput is achieved when `ulysses_degree`=2 and ring_attn_impl as `zigzag`. We observed 18% and 31% throughput improvement for FWD+BWD and FWD-only.
 
 ![head=2](./media/long_ctx_h2.png)
 
 
-- GQA, head_num=64, group_num=8, seqlen=4K. Reproduce by running [./scripts/run_gqa.sh](./scripts/run_gqa.sh)
+- GQA, head_num=64, group_num=8, local seqlen=4K (global seqlen=32K). Reproduce by running [./scripts/run_gqa.sh](./scripts/run_gqa.sh)
 
 
 The best throughput is achieved when `ulysses_degree`=8 and ring_attn_impl as `zigzag`. We observed 15% and 11% throughput improvement for FWD+BWD and FWD-only.
@@ -123,9 +123,9 @@ The main idea is to use the `softmax_lse` output from the flash attention kernel
 
 ### Limits
 
-There are some arithmetic errors with the current implementation. The reason for this is probably that flash attention will return the bf16 value for each block, so we cannot accumulate the values with the original fp32 ones.
+1. There are some arithmetic errors with the current implementation. The reason for this is probably that flash attention will return the bf16 value for each block, so we cannot accumulate the values with the original fp32 ones.
 
-And also because we need to save extra fp32 buffer during computation, the memory usage would be higher than the theoretic limit.
+2. And also because we need to save extra fp32 buffer during computation, the memory usage would be higher than the theoretic limit.
 
 ### Test
 
@@ -136,6 +136,13 @@ torchrun --nproc_per_node 8 test/test_zigzag_ring_flash_attn_func.py
 torchrun --nproc_per_node 8 test/test_zigzag_ring_flash_attn_varlen_func.py
 torchrun --nproc_per_node 8 test/test_stripe_flash_attn_func.py
 ```
+
+
+## TODOs
+
+1. Integrates other Ring-Attention Versions, for example [ring-attention-pytorch](https://github.com/lucidrains/ring-attention-pytorch)
+
+2. Apply `LongContextAttention` in DeepSpeed.
 
 ## Citation
 ```
