@@ -1,9 +1,10 @@
 from yunchang import (
+    AsyncLongContextAttention,
     LongContextAttention,
+    set_seq_parallel_pg,
 )
 import torch
 import torch.distributed as dist
-from yunchang import set_seq_parallel_pg
 from flash_attn import flash_attn_func
 
 
@@ -49,6 +50,7 @@ if __name__ == "__main__":
     causal = True
     deterministic = False
 
+    use_async_all_to_all = True
     assert seqlen % world_size == 0
     assert d % 8 == 0
     # assert batch_size == 1
@@ -88,12 +90,13 @@ if __name__ == "__main__":
         f"rank {rank}, sp_ulysses_degree: {sp_ulysses_degree}, sp_ring_degree: {sp_ring_degree}"
     )
 
-    set_seq_parallel_pg(
-        sp_ulysses_degree, sp_ring_degree, rank, world_size
-    )
+    set_seq_parallel_pg(sp_ulysses_degree, sp_ring_degree, rank, world_size)
 
-    hybrid_seq_parallel_attn = LongContextAttention()
-    
+    if use_async_all_to_all:
+        hybrid_seq_parallel_attn = AsyncLongContextAttention()
+    else:
+        hybrid_seq_parallel_attn = LongContextAttention()
+
     if rank == 0:
         print("#" * 30)
         print("# ds-ulysses forward:")

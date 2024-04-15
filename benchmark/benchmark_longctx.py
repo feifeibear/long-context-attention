@@ -1,6 +1,10 @@
 import torch
 import torch.distributed as dist
-from yunchang import LongContextAttention, set_seq_parallel_pg
+from yunchang import (
+    AsyncLongContextAttention,
+    LongContextAttention,
+    set_seq_parallel_pg,
+)
 import torch.cuda
 import argparse
 
@@ -44,6 +48,12 @@ parser.add_argument(
     action="store_true",
     default=False,
     help="use torch profiler",
+)
+parser.add_argument(
+    "--use_async_all_to_all",
+    action="store_true",
+    default=False,
+    help="async allgather",
 )
 
 args = parser.parse_args()
@@ -127,10 +137,11 @@ def benchmark(num_iter=100, forward_only=True, log=True, profile=False):
     set_seq_parallel_pg(
         sp_ulysses_degree, sp_ring_degree, rank, world_size, args.use_ulysses_lowdim
     )
-    longctx_attn = LongContextAttention(
-        ring_impl_type=args.ring_impl_type, use_pack_qkv=args.use_qkvpack
-    )
 
+    if args.use_async_all_to_all:
+        longctx_attn = AsyncLongContextAttention(ring_impl_type=args.ring_impl_type)
+    else:
+        longctx_attn = LongContextAttention(ring_impl_type=args.ring_impl_type)
     out = longctx_attn(
         q,
         k,
@@ -224,7 +235,8 @@ if __name__ == "__main__":
         color_print(
             f"# long context attention {args.ring_impl_type}. "
             f"ulysses_degree : {args.ulysses_degree} fwd_only {forward_only} use_ulysses_lowdim {args.use_ulysses_lowdim}. "
-            f"use_qkvpack: {args.use_qkvpack}"
+            f"use_qkvpack: {args.use_qkvpack} "
+            f"asyn_all_to_all: {args.use_async_all_to_all}"
         )
     torch.cuda.empty_cache()
     benchmark(forward_only=forward_only, log=False)
