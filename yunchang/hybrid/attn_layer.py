@@ -1,4 +1,4 @@
-from yunchang.ulysses.utils import SeqAllToAll4D, SeqAllToAll5D
+from yunchang.comm.all_to_all import SeqAllToAll4D, SeqAllToAll5D
 
 import torch
 
@@ -68,7 +68,6 @@ class LongContextAttention(torch.nn.Module):
 
         # 3 X (bs, seq_len/N, head_cnt, head_size) -> 3 X (bs, seq_len, head_cnt/N, head_size)
         # scatter 2, gather 1
-        rank = torch.distributed.get_rank()
         if self.use_pack_qkv:
             # (3*bs, seq_len/N, head_cnt, head_size)
             qkv = torch.cat([query, key, value])

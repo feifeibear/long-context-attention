@@ -10,7 +10,7 @@ from torch import Tensor
 
 import torch.distributed as dist
 from flash_attn import flash_attn_func
-from .utils import SeqAllToAll4D
+from yunchang.comm.all_to_all import SeqAllToAll4D
 
 
 class UlyssesAttention(torch.nn.Module):
@@ -82,7 +82,7 @@ class UlyssesAttention(torch.nn.Module):
             return_attn_probs=return_attn_probs,
         )
 
-        if  isinstance(context_layer, tuple):
+        if isinstance(context_layer, tuple):
             context_layer = context_layer[0]
 
         # (bs, seq_len, head_cnt/N, head_size) -> (bs, seq_len/N, head_cnt, head_size)
