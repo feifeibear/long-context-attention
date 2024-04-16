@@ -278,12 +278,6 @@ class AsyncLongContextAttention(torch.nn.Module):
                 async_op=True,
             )
             last_comm_handle_list.append(ret)
-            # output = SeqAllToAll4D.apply(
-            #     self.ulysses_pg, context_layer, self.gather_idx, self.scatter_idx
-            # )
-            # print(f"q.shape {qkv[0].shape}, context_layer {context_layer.shape}")
-            # out (nu, bs, seqlen, 1, hs)
-            # context_layer_list.append(output)
 
         # hc = un * P
         # un x (hc = P, seq_len/P, bs, hs) -> (bs, seq_len, hc = P, hs)
