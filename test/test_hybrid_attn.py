@@ -35,6 +35,7 @@ def log(msg, a, rank0_only=False):
 
 
 if __name__ == "__main__":
+    use_bwd = False
     dist.init_process_group("nccl")
 
     rank = dist.get_rank()
@@ -119,7 +120,8 @@ if __name__ == "__main__":
         print("# ds-ulysses backward:")
         print("#" * 30)
 
-    local_out.backward(local_dout)
+    if use_bwd:
+        local_out.backward(local_dout)
 
     dist.barrier()
 
@@ -144,7 +146,8 @@ if __name__ == "__main__":
         print("# local forward:")
         print("#" * 30)
 
-    out_ref.backward(dout)
+    if use_bwd:
+        out_ref.backward(dout)
 
     dist.barrier()
 
@@ -155,14 +158,15 @@ if __name__ == "__main__":
     log("out", local_out, rank0_only=True)
     log("out diff", local_out_ref - local_out)
 
-    local_dq_ref = q.grad.chunk(world_size, dim=1)[rank]
-    log("load_dq", local_q.grad)
-    log("dq diff", local_dq_ref - local_q.grad)
+    if use_bwd:
+        local_dq_ref = q.grad.chunk(world_size, dim=1)[rank]
+        log("load_dq", local_q.grad)
+        log("dq diff", local_dq_ref - local_q.grad)
 
-    local_dk_ref = k.grad.chunk(world_size, dim=1)[rank]
-    log("load_dk", local_k.grad)
-    log("dk diff", local_dk_ref - local_k.grad)
+        local_dk_ref = k.grad.chunk(world_size, dim=1)[rank]
+        log("load_dk", local_k.grad)
+        log("dk diff", local_dk_ref - local_k.grad)
 
-    local_dv_ref = v.grad.chunk(world_size, dim=1)[rank]
-    log("load_dk", local_v.grad)
-    log("dv diff", local_dv_ref - local_v.grad)
+        local_dv_ref = v.grad.chunk(world_size, dim=1)[rank]
+        log("load_dk", local_v.grad)
+        log("dv diff", local_dv_ref - local_v.grad)

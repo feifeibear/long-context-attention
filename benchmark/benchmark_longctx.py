@@ -153,7 +153,8 @@ def benchmark(num_iter=100, forward_only=True, log=True, profile=False):
         deterministic=deterministic,
         return_attn_probs=False,
     )
-    out.backward(dout)
+    if not args.fwd_only:
+        out.backward(dout)
 
     out = longctx_attn(
         q,
@@ -166,7 +167,8 @@ def benchmark(num_iter=100, forward_only=True, log=True, profile=False):
         deterministic=deterministic,
         return_attn_probs=False,
     )
-    out.backward(dout)
+    if not args.fwd_only:
+        out.backward(dout)
 
     begin = torch.cuda.Event(enable_timing=True)
     begin.record()
