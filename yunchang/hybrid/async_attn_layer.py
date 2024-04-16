@@ -10,113 +10,6 @@ from .utils import RING_IMPL_DICT, RING_IMPL_QKVPACKED_DICT
 from yunchang.globals import PROCESS_GROUP
 
 
-def _chunk(t, ulysses_degree):
-    bs, local_seqlen, hc, hs = t.shape
-
-    assert hc % ulysses_degree == 0
-
-    un = hc // ulysses_degree
-
-    # (bs, local_seqlen, un, ulysses_degree, hs) -> (un, bs, local_seqlne, ulysses_degree, hs)
-    t_list = torch.unbind(
-        t.reshape(bs, local_seqlen, un, ulysses_degree, hs)
-        .transpose(0, 2)
-        .transpose(1, 2)
-    )
-    return t_list
-
-
-def all_to_all_4D_async(
-    input: torch.tensor,
-    output: torch.tensor,
-    scatter_idx: int = 2,
-    gather_idx: int = 1,
-    group=None,
-) -> torch.tensor:
-    """
-    all-to-all for QKV
-
-    Args:
-        input (torch.tensor): a tensor sharded along dim scatter dim
-        output (torch.tensor): output tensor shared along dim gatter.
-        scatter_idx (int): default 1
-        gather_idx (int): default 2
-        group : torch process group
-
-    Returns:
-        torch.tensor: resharded tensor (bs, seqlen/P, hc, hs)
-    """
-    assert (
-        input.dim() == 4
-    ), f"input must be 4D tensor, got {input.dim()} and shape {input.shape}"
-
-    seq_world_size = dist.get_world_size(group)
-
-    if scatter_idx == 2 and gather_idx == 1:
-        # input (torch.tensor): a tensor sharded along dim 1 (bs, seqlen/P, hc, hs) output: (bs, seqlen, hc/P, hs)
-        bs, shard_seqlen, hc, hs = input.shape
-        seqlen = shard_seqlen * seq_world_size
-        shard_hc = hc // seq_world_size
-
-        # transpose groups of heads with the seq-len parallel dimension, so that we can scatter them!
-        # (bs, seqlen/P, hc, hs) -reshape-> (bs, seq_len/P, P, hc/P, hs) -transpose(0,2)-> (P, seq_len/P, bs, hc/P, hs)
-        input_t = (
-            input.reshape(bs, shard_seqlen, seq_world_size, shard_hc, hs)
-            .transpose(0, 2)
-            .contiguous()
-        )
-
-        # https://pytorch.org/docs/stable/distributed.html#torch.distributed.all_to_all_single
-        # (P, seq_len/P, bs, hc/P, hs) scatter seqlen -all2all-> (P, seq_len/P, bs, hc/P, hs) scatter head
-        dist.all_to_all_single(output, input_t, group=group)
-
-        # if scattering the seq-dim, transpose the heads back to the original dimension
-        # (seq_len, bs, hc/P, hs) -reshape-> (bs, seq_len, hc/P, hs)
-        output = (
-            output.reshape(seqlen, bs, shard_hc, hs)
-            .transpose(0, 1)
-            .contiguous()
-            .reshape(bs, seqlen, shard_hc, hs)
-        )
-
-        return output
-
-    elif scatter_idx == 1 and gather_idx == 2:
-        # input (torch.tensor): a tensor sharded along dim 1 (bs, seqlen, hc/P, hs) output: (bs, seqlen/P, hc, hs)
-        bs, seqlen, shard_hc, hs = input.shape
-        hc = shard_hc * seq_world_size
-        shard_seqlen = seqlen // seq_world_size
-        seq_world_size = dist.get_world_size(group)
-
-        # transpose groups of heads with the seq-len parallel dimension, so that we can scatter them!
-        # (bs, seqlen, hc/P, hs) -reshape-> (bs, P, seq_len/P, hc/P, hs) -transpose(0, 3)-> (hc/P, P, seqlen/P, bs, hs) -transpose(0, 1) -> (P, hc/P, seqlen/P, bs, hs)
-        input_t = (
-            input.reshape(bs, seq_world_size, shard_seqlen, shard_hc, hs)
-            .transpose(0, 3)
-            .transpose(0, 1)
-            .contiguous()
-            .reshape(seq_world_size, shard_hc, shard_seqlen, bs, hs)
-        )
-
-        # https://pytorch.org/docs/stable/distributed.html#torch.distributed.all_to_all_single
-        # (P, bs x hc/P, seqlen/P, hs) scatter seqlen -all2all-> (P, bs x seq_len/P, hc/P, hs) scatter head
-        dist.all_to_all_single(output, input_t, group=group)
-
-        # if scattering the seq-dim, transpose the heads back to the original dimension
-        output = (
-            output.reshape(hc, shard_seqlen, bs, hs)
-            .transpose(0, 2)
-            .contiguous()
-            .reshape(bs, shard_seqlen, hc, hs)
-        )
-
-        # (hc, seqlen/N, bs, hs) -tranpose(0,2)-> (bs, seqlen/N, hc, hs)
-
-        return output
-    else:
-        raise RuntimeError("scatter_idx must be 1 or 2 and gather_idx must be 1 or 2")
-
-
 class AsyncLongContextAttention(torch.nn.Module):
     """Initialization.
 
@@ -138,6 +31,7 @@ class AsyncLongContextAttention(torch.nn.Module):
         self.ring_pg = PROCESS_GROUP.RING_PG
         self.ulysses_pg = PROCESS_GROUP.ULYSSES_PG
         self.stream = torch.cuda.Stream()
+        self._async_op = True
 
         assert (
             self.ulysses_pg is not None or self.ring_pg is not None
@@ -222,15 +116,19 @@ class AsyncLongContextAttention(torch.nn.Module):
 
         # un * (ud, shard_seqlen, 3*bs, hs)
         for i, qkv in enumerate(qkv_list):
-            # with torch.cuda.stream(self.stream):
-            ret = dist.all_to_all_single(
-                qkv_trans_list[i], qkv, group=self.ulysses_pg, async_op=True
-            )
+            with torch.cuda.stream(self.stream):
+                ret = dist.all_to_all_single(
+                    qkv_trans_list[i],
+                    qkv,
+                    group=self.ulysses_pg,
+                    async_op=self._async_op,
+                )
             comm_handle_list.append(ret)
 
         last_comm_handle_list = []
         for i, qkv_trans in enumerate(qkv_trans_list):
-            comm_handle_list[i].wait()
+            if comm_handle_list[i] is not None:
+                comm_handle_list[i].wait()
             qkv_trans = (
                 qkv_trans.reshape(seq_len, 3 * bs, 1, hs)
                 .transpose(0, 1)
@@ -270,19 +168,20 @@ class AsyncLongContextAttention(torch.nn.Module):
                 .contiguous()
                 .reshape(ulysses_degree, 1, shard_seqlen, bs, hs)
             )
-            # with torch.cuda.stream(self.stream):
-            ret = dist.all_to_all_single(
-                context_layer_list[i],
-                context_layer,
-                group=self.ulysses_pg,
-                async_op=True,
-            )
+            with torch.cuda.stream(self.stream):
+                ret = dist.all_to_all_single(
+                    context_layer_list[i],
+                    context_layer,
+                    group=self.ulysses_pg,
+                    async_op=self._async_op,
+                )
             last_comm_handle_list.append(ret)
 
         # hc = un * P
         # un x (hc = P, seq_len/P, bs, hs) -> (bs, seq_len, hc = P, hs)
         for i, ret in enumerate(last_comm_handle_list):
-            ret.wait()
+            if ret is not None:
+                ret.wait()
             context_layer_list[i] = (
                 context_layer_list[i]
                 .reshape(ulysses_degree, shard_seqlen, bs, hs)
