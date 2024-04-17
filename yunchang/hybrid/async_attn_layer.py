@@ -8,7 +8,6 @@ from torch import Tensor
 import torch.distributed as dist
 from .utils import RING_IMPL_DICT, RING_IMPL_QKVPACKED_DICT
 from yunchang.globals import PROCESS_GROUP
-from flash_attn import flash_attn_func
 
 
 class AsyncLongContextAttention(torch.nn.Module):
@@ -33,8 +32,6 @@ class AsyncLongContextAttention(torch.nn.Module):
         self.ulysses_pg = PROCESS_GROUP.ULYSSES_PG
 
         self.stream = torch.cuda.Stream()
-        self.stream2 = torch.cuda.Stream()
-
         self._async_op = True
 
         assert (
@@ -127,7 +124,7 @@ class AsyncLongContextAttention(torch.nn.Module):
                     group=self.ulysses_pg,
                     async_op=self._async_op,
                 )
-                comm_handle_list.append(ret)
+            comm_handle_list.append(ret)
 
         last_comm_handle_list = []
         for i, qkv_trans in enumerate(qkv_trans_list):
@@ -172,14 +169,14 @@ class AsyncLongContextAttention(torch.nn.Module):
                 .contiguous()
                 .reshape(ulysses_degree, 1, shard_seqlen, bs, hs)
             )
-            with torch.cuda.stream(self.stream2):
+            with torch.cuda.stream(self.stream):
                 ret = dist.all_to_all_single(
                     context_layer_list[i],
                     context_layer,
                     group=self.ulysses_pg,
                     async_op=self._async_op,
                 )
-                last_comm_handle_list.append(ret)
+            last_comm_handle_list.append(ret)
 
         # hc = un * P
         # un x (hc = P, seq_len/P, bs, hs) -> (bs, seq_len, hc = P, hs)
