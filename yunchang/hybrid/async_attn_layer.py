@@ -8,6 +8,7 @@ from torch import Tensor
 import torch.distributed as dist
 from .utils import RING_IMPL_DICT, RING_IMPL_QKVPACKED_DICT
 from yunchang.globals import PROCESS_GROUP
+from flash_attn import flash_attn_func
 
 
 class AsyncLongContextAttention(torch.nn.Module):
@@ -30,7 +31,10 @@ class AsyncLongContextAttention(torch.nn.Module):
         super(AsyncLongContextAttention, self).__init__()
         self.ring_pg = PROCESS_GROUP.RING_PG
         self.ulysses_pg = PROCESS_GROUP.ULYSSES_PG
+
         self.stream = torch.cuda.Stream()
+        self.stream2 = torch.cuda.Stream()
+
         self._async_op = True
 
         assert (
@@ -123,7 +127,7 @@ class AsyncLongContextAttention(torch.nn.Module):
                     group=self.ulysses_pg,
                     async_op=self._async_op,
                 )
-            comm_handle_list.append(ret)
+                comm_handle_list.append(ret)
 
         last_comm_handle_list = []
         for i, qkv_trans in enumerate(qkv_trans_list):
@@ -139,7 +143,7 @@ class AsyncLongContextAttention(torch.nn.Module):
             # qkv_trans = all_to_all_4D_async(qkv, qkv_trans_list[i], self.scatter_idx, self.gather_idx, self.ulysses_pg)
             qkv_trans = torch.chunk(qkv_trans, 3, dim=0)
 
-            out = self.ring_attn_fn(
+            out = flash_attn_func(
                 qkv_trans[0],
                 qkv_trans[1],
                 qkv_trans[2],
@@ -150,7 +154,7 @@ class AsyncLongContextAttention(torch.nn.Module):
                 alibi_slopes=alibi_slopes,
                 deterministic=deterministic,
                 return_attn_probs=return_attn_probs,
-                group=self.ring_pg,
+                # group=self.ring_pg,
             )
 
             if type(out) == tuple:
@@ -168,14 +172,14 @@ class AsyncLongContextAttention(torch.nn.Module):
                 .contiguous()
                 .reshape(ulysses_degree, 1, shard_seqlen, bs, hs)
             )
-            with torch.cuda.stream(self.stream):
+            with torch.cuda.stream(self.stream2):
                 ret = dist.all_to_all_single(
                     context_layer_list[i],
                     context_layer,
                     group=self.ulysses_pg,
                     async_op=self._async_op,
                 )
-            last_comm_handle_list.append(ret)
+                last_comm_handle_list.append(ret)
 
         # hc = un * P
         # un x (hc = P, seq_len/P, bs, hs) -> (bs, seq_len, hc = P, hs)
