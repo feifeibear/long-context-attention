@@ -12,7 +12,7 @@ The project is built on [zhuzilin/ring-flash-attention](https://github.com/zhuzi
 - Ulysses is sensitive to the number of heads. 
 The parallelism degree in Ulysses cannot exceed the number of heads. 
 Consequently, it is not suitable for GQA (Grouped Query Attention) and MQA (Multi-Query Attention) scenarios. For instance, Ulysses does not operate effectively with a single head. 
-In addition, since Tensor Parallelism also requires the division across the head number dimension, achieving compatibility between Ulysses and TP can be challenging.
+In addition, since Tensor Parallelism (TP) also requires the division across the head number dimension, achieving compatibility between Ulysses and TP can be challenging.
 
 - Ring-Attention is ineffient than Ulysses in computation and communication.
 Ring-Attention segments the Query, Key, and Value (QKV) into smaller blocks, which can lead to a decrease in efficiency when using FlashAttentio.
@@ -42,7 +42,6 @@ torchrun --nproc_per_node 8 test/test_hybrid_qkvpacked_attn.py
 
 ### Benchmark
 
-### Test
 
 ```bash
 bash ./scripts/run_qkvpack_compare.sh
@@ -57,9 +56,9 @@ Benchmarks were conducted on an 8xA100 NVLink machine, and the results are as fo
 
 Some Conclusions:
 
-1. If head number is enough, Ulysses outperforms Ring-Attention. The All-to-All communication of Ulysses is highly efficient within a single machine, with a very low overhead ratio. In contrast, Ring splits computation and communication, which increases the overall of computation time, and even with complete overlap, it is slower than Ulysses.
+1. If the head number is enough, Ulysses outperforms Ring-Attention. The All-to-All communication of Ulysses is highly efficient within a single machine, with a very low overhead ratio. In contrast, Ring splits computation and communication, which increases the overall of computation time, and even with complete overlap, it is slower than Ulysses.
 
-2. QKV packed (`LongContextAttentionQKVPacked`) is better than QKV no packed (`LongContextAttention`) version, with the difference becoming more pronounced as the sequence length decreases. MAQ and GQA can only use the no packed version.
+2. QKV packed (`LongContextAttentionQKVPacked`) is better than the QKV no packed (`LongContextAttention`) version, with the difference becoming more pronounced as the sequence length decreases. MAQ and GQA can only use the no packed version.
 
 3. Among the variants of the Ring-Attention implementation, `zigzag` and `stripe` perform better than `basic`. Typically, zigzag is slightly better than stripe, but as the sequence length increases, the difference between zigzag and stripe becomes less noticeable. It is worth noting that both zigzag and stripe have specific layout requirements for the sequence dimension.
 
