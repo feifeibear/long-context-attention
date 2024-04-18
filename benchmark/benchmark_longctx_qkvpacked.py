@@ -2,6 +2,7 @@ from flash_attn import flash_attn_varlen_qkvpacked_func
 import torch
 import torch.distributed as dist
 from yunchang import set_seq_parallel_pg, LongContextAttentionQKVPacked
+from yunchang.comm import EXTRACT_FUNC_DICT
 import torch.cuda
 
 import argparse
@@ -17,7 +18,12 @@ parser.add_argument(
 )
 parser.add_argument("--nheads", type=int, default=2, help="head number")
 parser.add_argument("--head_size", type=int, default=128, help="head number")
-parser.add_argument("--seq_len", type=int, default=4 * 1024, help="head number")
+parser.add_argument(
+    "--seq_len",
+    type=int,
+    default=4 * 1024,
+    help="local sequence length, the global sequence length is seq_len * world_size",
+)
 parser.add_argument("--batch_size", type=int, default=2, help="batch size")
 parser.add_argument(
     "--fwd_only", action="store_true", help="benchmark forward pass only"
@@ -61,9 +67,18 @@ def benchmark(num_iter=100, forward_only=True, log=True):
     assert d % 8 == 0
 
     qkv = torch.randn(
-        batch_size, seqlen, 3, nheads, d, device=device, dtype=dtype, requires_grad=True
+        batch_size,
+        seqlen * world_size,
+        3,
+        nheads,
+        d,
+        device=device,
+        dtype=dtype,
+        requires_grad=True,
     )
-    dout = torch.randn(batch_size, seqlen, nheads, d, device=device, dtype=dtype)
+    dout = torch.randn(
+        batch_size, seqlen * world_size, nheads, d, device=device, dtype=dtype
+    )
 
     sp_ulysses_degree = min(args.ulysses_degree, world_size)
     sp_ring_degree = world_size // sp_ulysses_degree
@@ -74,14 +89,21 @@ def benchmark(num_iter=100, forward_only=True, log=True):
 
     longctx_attn = LongContextAttentionQKVPacked(ring_impl_type=args.ring_impl_type)
 
-    longctx_attn(
-        qkv,
-        dropout_p=dropout_p,
-        causal=causal,
-        window_size=(-1, -1),
-        alibi_slopes=None,
-        deterministic=deterministic,
-        return_attn_probs=False,
+    # NOTE() using zigzag and stripe have a special layout.
+    qkv = (
+        EXTRACT_FUNC_DICT[args.ring_impl_type](
+            qkv, rank, world_size=world_size, rd=sp_ring_degree, ud=sp_ulysses_degree
+        )
+        .detach()
+        .clone()
+    )
+    qkv.requires_grad = True
+    dout = (
+        EXTRACT_FUNC_DICT[args.ring_impl_type](
+            dout, rank, world_size=world_size, rd=sp_ring_degree, ud=sp_ulysses_degree
+        )
+        .detach()
+        .clone()
     )
 
     out = longctx_attn(
@@ -141,8 +163,11 @@ if __name__ == "__main__":
 
     torch.cuda.empty_cache()
     if rank == 0:
+        color_print(vars(args))
         color_print(
-            f"# long context attention qkvpacked. ulysses_degree : {args.ulysses_degree} fwd_only {forward_only} use_ulysses_lowdim {args.use_ulysses_lowdim}"
+            f"# long context attention qkvpacked {args.ring_impl_type}. ulysses_degree : {args.ulysses_degree} "
+            f"fwd_only {forward_only} "
+            f"use_ulysses_lowdim {args.use_ulysses_lowdim} "
         )
     benchmark(forward_only=forward_only, log=False)
     benchmark(forward_only=forward_only, log=True)

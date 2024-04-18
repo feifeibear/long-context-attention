@@ -30,6 +30,7 @@ class AsyncLongContextAttention(torch.nn.Module):
         super(AsyncLongContextAttention, self).__init__()
         self.ring_pg = PROCESS_GROUP.RING_PG
         self.ulysses_pg = PROCESS_GROUP.ULYSSES_PG
+
         self.stream = torch.cuda.Stream()
         self._async_op = True
 

@@ -5,6 +5,7 @@ from yunchang import (
     LongContextAttention,
     set_seq_parallel_pg,
 )
+from yunchang.comm import EXTRACT_FUNC_DICT
 import torch.cuda
 import argparse
 
@@ -65,7 +66,7 @@ def color_print(text):
 
 def init_prof(use_profiler):
     activities = []
-    # activities.append(torch.profiler.ProfilerActivity.CPU)
+    activities.append(torch.profiler.ProfilerActivity.CPU)
     activities.append(torch.profiler.ProfilerActivity.CUDA)
 
     from contextlib import nullcontext
@@ -142,6 +143,7 @@ def benchmark(num_iter=100, forward_only=True, log=True, profile=False):
         longctx_attn = AsyncLongContextAttention(ring_impl_type=args.ring_impl_type)
     else:
         longctx_attn = LongContextAttention(ring_impl_type=args.ring_impl_type)
+
     out = longctx_attn(
         q,
         k,
