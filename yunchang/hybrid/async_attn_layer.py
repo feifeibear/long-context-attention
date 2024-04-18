@@ -140,7 +140,7 @@ class AsyncLongContextAttention(torch.nn.Module):
             # qkv_trans = all_to_all_4D_async(qkv, qkv_trans_list[i], self.scatter_idx, self.gather_idx, self.ulysses_pg)
             qkv_trans = torch.chunk(qkv_trans, 3, dim=0)
 
-            out = flash_attn_func(
+            out = self.ring_attn_fn(
                 qkv_trans[0],
                 qkv_trans[1],
                 qkv_trans[2],
@@ -151,7 +151,7 @@ class AsyncLongContextAttention(torch.nn.Module):
                 alibi_slopes=alibi_slopes,
                 deterministic=deterministic,
                 return_attn_probs=return_attn_probs,
-                # group=self.ring_pg,
+                group=self.ring_pg,
             )
 
             if type(out) == tuple:
