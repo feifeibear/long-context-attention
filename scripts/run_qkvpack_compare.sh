@@ -18,7 +18,6 @@ FWD_FLAG="--fwd_only"
 
 
 
-
 # SEQLEN=512
 # SEQLEN=1024
 # SEQLEN=4096
@@ -39,11 +38,8 @@ GPU_NUM=8
 
 # NHEADS // GROUP_NUM > ulysses_degree
 
-# for RING_IMPL_TYPE in "basic" "zigzag" "strip"; do
-# for ULYSSES_DEGREE in 8 4 2 1; do
-
-for RING_IMPL_TYPE in "basic"; do
-for ULYSSES_DEGREE in 1; do
+for RING_IMPL_TYPE in "basic" "zigzag" "strip"; do
+for ULYSSES_DEGREE in 8 4 2 1; do
 
 torchrun --nproc_per_node $GPU_NUM benchmark/benchmark_longctx_qkvpacked.py \
 --nheads $NHEADS \
@@ -67,11 +63,4 @@ $FWD_FLAG
 done
 done
 
-
-# docker exec -it 888c58e74578 bash
-
-# torchrun --nproc_per_node 4 test/test_hybrid_attn.py
-
-# torchrun --nproc_per_node 4 test/test_hybrid_qkvpacked_attn.py
-# torchrun --nproc_per_node 2 ./test/test_hybrid_attn.py
 
