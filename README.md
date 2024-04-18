@@ -1,4 +1,4 @@
-# Long-Context-Attention (YunChang-云长): Sequence Parallel Attention Implementations for Long Context LLM Model Training and Inference
+# Long-Context-Attention (YunChang-云长): Sequence Parallel Attention for Long Context LLM Model Training and Inference
 
 <p align="center">
     <img src="./media/yun_chang.jpg" width="200" />
@@ -12,10 +12,10 @@ The project is built on [zhuzilin/ring-flash-attention](https://github.com/zhuzi
 - Ulysses is sensitive to the number of heads. 
 The parallelism degree in Ulysses cannot exceed the number of heads. 
 Consequently, it is not suitable for GQA (Grouped Query Attention) and MQA (Multi-Query Attention) scenarios. For instance, Ulysses does not operate effectively with a single head. 
-In addition, since Tensor Parallelism (TP) also requires the division across the head number dimension, achieving compatibility between Ulysses and TP can be challenging.
+In addition, since Tensor Parallelism also requires the division across the head number dimension, achieving compatibility between Ulysses and TP can be challenging.
 
 - Ring-Attention is ineffient than Ulysses in computation and communication.
-Ring-Attention segments the Query, Key, and Value (QKV) into smaller blocks, which can lead to a decrease in efficiency when using FlashAttentio.
+Ring-Attention segments the Query, Key, and Value (QKV) into smaller blocks, which can lead to a decrease in efficiency when using FlashAttention.
 Even with the communication and computation processes fully overlapped, the total execution time lags behind that of Ulysses. 
 Furthermore, Ring-Attention utilizes asynchronous peer-to-peer communication, which not only has a lower bandwidth utilization compared to collective communication methods but also poses the risk of potential communication deadlocks in large-scale deployments.
 
