@@ -1,23 +1,38 @@
-# Long-Context-Attention (YunChang-云长): Distributed Attention Implementations for Long Context LLM Model Training and Inference
+# Long-Context-Attention (YunChang-云长): Sequence Parallel Attention Implementations for Long Context LLM Model Training and Inference
 
 <p align="center">
     <img src="./media/yun_chang.jpg" width="200" />
 </p>
 
-This repo provides a distributed sequence parallel approaches called Long-Context-Attention. It synergizes the strengths of two popular distributed attentions, i.e. DeepSpeed-Ulysses-Attention and Ring-Attention, delivering a superior performance that outshines its predecessors.
+This repo provides a sequence parallel approaches which synergizes the strengths of two popular distributed attentions, i.e. DeepSpeed-Ulysses-Attention and Ring-Attention, delivering a more general and stronger versatility and better performance. 
+The project is built on [zhuzilin/ring-flash-attention](https://github.com/zhuzilin/ring-flash-attention) and refers to the [DeepSpeed-Ulysses](https://github.com/microsoft/DeepSpeed/blob/master/blogs/deepspeed-ulysses/README.md).
+
+## What's wrong with Ulysses and Ring?
+
+- Ulysses is sensitive to the number of heads. 
+The parallelism degree in Ulysses cannot exceed the number of heads. 
+Consequently, it is not suitable for GQA (Grouped Query Attention) and MQA (Multi-Query Attention) scenarios. For instance, Ulysses does not operate effectively with a single head. 
+In addition, since Tensor Parallelism also requires the division across the head number dimension, achieving compatibility between Ulysses and TP can be challenging.
+
+- Ring-Attention is ineffient than Ulysses in computation and communication.
+Ring-Attention segments the Query, Key, and Value (QKV) into smaller blocks, which can lead to a decrease in efficiency when using FlashAttentio.
+Even with the communication and computation processes fully overlapped, the total execution time lags behind that of Ulysses. 
+Furthermore, Ring-Attention utilizes asynchronous peer-to-peer communication, which not only has a lower bandwidth utilization compared to collective communication methods but also poses the risk of potential communication deadlocks in large-scale deployments.
 
 
 ## LongContextAttention (Hybrid Ulysses-Ring Attention)
 
-LongContextAttention is a **sequence parallel approach** that integrates the strengths of DeepSpeed-Ulysses-Attention and Ring-Attention while addressing the limitations of both methods.
+`LongContextAttention` is a **sequence parallel approach** that integrates the strengths of DeepSpeed-Ulysses-Attention and Ring-Attention while addressing the limitations of both methods.
 
-- Ulysses is sensitive to network architecture and the parallel degree can not be larger than the number of heads, which makes it not suitable for GQA (Grouped Query Attention ) and MQA (Multi-Query Attention). For example, Ulysses fails to operate when the head_num is set to 1.
+**Features:**
 
-- Ring-Attention segments QKV into smaller blocks and performs P2P (peer-to-peer) communication, which has a lower bandwidth utilization compared to collective communication. For instance, in the first table below (with head_num=8), Ulysses Degree=1 is significantly lower than Ulysses Degree=4.
+1. No Limitation on the Number of Heads: Our approach does not impose a restriction on the number of heads, providing greater flexibility for various attention mechanisms.
 
-By partitioning the sequence parallel Process Group into Ulysses and Ring Process Groups, LongContextAttention aims to integrate the strengths of both methods navigating around their limitations.
+2. Comprehensive Capability: It encompasses the functionalities of both Ulysses and Ring models. By setting the ulysses_degree to the sequence parallel degree, the system operates identically to Ulysses. Conversely, setting the ulysses_degree to 1 mirrors the functionality of Ring.
 
-LongContextAttention is compatible with the other parallel strategies, such as Tensor Parallelism, ZeRO, Pipeline Parallelism.
+3. Enhanced Performance: We achieve superior performance benchmarks over both Ulysses and Ring, offering a more efficient solution for attention mechanism computations.
+
+4. Compatibility with Advanced Parallel Strategies: LongContextAttention is fully compatible with other sophisticated parallelization techniques, including Tensor Parallelism, ZeRO, and Pipeline Parallelism, ensuring seamless integration with the latest advancements in parallel computing.
 
 ### Test
 
@@ -27,21 +42,29 @@ torchrun --nproc_per_node 8 test/test_hybrid_qkvpacked_attn.py
 
 ### Benchmark
 
-You can try to tune `ulysses_degree`, `ring_impl_type`, `--use_ulysses_lowdim` for the best performance.
+### Test
 
+```bash
+bash ./scripts/run_qkvpack_compare.sh
 ```
-FWD_FLAG=""
-NHEADS=8
 
-for RING_IMPL_TYPE in "basic" "zigzag" "strip"; do
-torchrun --nproc_per_node 8 benchmark/benchmark_longctx_qkvpacked.py --nheads $NHEADS --batch_size 2 $FWD_FLAG --ulysses_degree 1 --ring_impl_type $RING_IMPL_TYPE
-torchrun --nproc_per_node 8 benchmark/benchmark_longctx_qkvpacked.py --nheads $NHEADS --batch_size 2 $FWD_FLAG --ulysses_degree 2 --ring_impl_type $RING_IMPL_TYPE
-torchrun --nproc_per_node 8 benchmark/benchmark_longctx_qkvpacked.py --nheads $NHEADS --batch_size 2 $FWD_FLAG --ulysses_degree 4 --ring_impl_type $RING_IMPL_TYPE
-torchrun --nproc_per_node 8 benchmark/benchmark_longctx_qkvpacked.py --nheads $NHEADS --batch_size 2 $FWD_FLAG --ulysses_degree 8 --ring_impl_type $RING_IMPL_TYPE
-done
+Benchmarks were conducted on an 8xA100 NVLink machine, and the results are as follows:
 
-torchrun --nproc_per_node 8 benchmark/benchmark_qkvpacked_func.py --nheads $NHEADS --batch_size 2 $FWD_FLAG
-```
+<p align="center">
+    <img src="./media/benchmark_results.png">
+</p>
+
+
+Some Conclusion:
+
+1. Ulysses outperforms Ring-Attention. The All-to-All communication of Ulysses is highly efficient within a single machine, with a very low overhead ratio. In contrast, Ring splits computation and communication, which increases the overall of computation time, and even with complete overlap, it is slower than Ulysses.
+
+2. QKV packed is better than QKV no packed, with the difference becoming more pronounced as the sequence length decreases.
+
+3. Among the variants of the Ring-Attention implementation, zigzag and stripe perform better than basic. Typically, zigzag is slightly better than stripe, but as the sequence length increases, the difference between zigzag and stripe becomes less noticeable. It is worth noting that both zigzag and stripe have specific layout requirements for the sequence dimension.
+
+
+### Case Study
 
 The following two pictures demonstrate the throughput (iters/sec) of different sequence parallel approaches on 8xA100 connected with NVLINK.
 Note that no-comm is a flash-attention version that conducts flash-attn locally without communications. 
@@ -79,70 +102,10 @@ The best throughput is achieved when `ulysses_degree`=8 and ring_attn_impl as `z
 
 ![gqa](./media/gqa.png)
 
-## Ulysses Attention
-This repository re-implements the all-to-all communication functions and supports QKV packed together, following the principles of [DeepSpeed-Ulysses](https://github.com/microsoft/DeepSpeed/blob/master/blogs/deepspeed-ulysses/README.md).
-It is important to note that DeepSpeed-Ulysses does not accommodate scenarios where the number of attention heads surpasses the size of the world (i.e., the total number of GPUs in the distributed setup).
 
-Below, I will use a diagram of FlashAttention Style to illustrate the workflow of deepspeed-ulysses. 
-In the diagram, 'N' represents the sequence length, 'd' denotes the hidden size calculated as hidden_size = (hc * hs), where 'hc' stands for the number of heads, and 'hs' is the size of each head. 'P' indicates the number of GPUs (with 'P=4' in the diagram).
+1. Integrates other Ring-Attention Versions, for example [ring-attention-pytorch](https://github.com/lucidrains/ring-attention-pytorch).
 
-As we can see, if the hc < 4, we can not compute attention in one single GPU.
-
-![ds-ulysses](./media/ulysses.png)
-
-### Test
-
-```bash
-torchrun --nproc_per_node 8 test/test_ulysses_attn.py
-```
-
-## Ring Attention
-
-
-Ring-Attention use the code from repo [zhuzilin/ring-flash-attention](https://github.com/zhuzilin/ring-flash-attention), which implements the [RingAttention](https://github.com/lhao499/RingAttention) with [FlashAttention](https://github.com/Dao-AILab/flash-attention). 
-
-
-Below, I use a diagram to illustrate the workflow of one single head of ring-attention. Note there are _hc_x such workflow in parallel.
-
-![head=8](./media/ring.png)
-
-We reuse the APIs:
-
-- `ring_flash_attn_func`: ring attention version of `flash_attn_func`
-- `ring_flash_attn_varlen_func`: ring attention version of `flash_attn_varlen_func`
-- `zigzag_ring_flash_attn_func`: an optimized version of `ring_flash_attn_func`, see [issue#2](https://github.com/zhuzilin/ring-flash-attention/issues/2)
-- `zigzag_ring_flash_attn_varlen_func`: an optimized version of `ring_flash_attn_varlen_func`
-- `stripe_flash_attn_func`: stripe attention version of `ring_flash_attn_func`, the block size is set to 1 to use flash_attn api.
-
-Note that
-
-- all function has the `*_func`, `*_kvpacked_func`, `*_qkvpacked_func` variant implemented.
-- the varlen versions only support passing one `cu_seqlens`.
-
-The main idea is to use the `softmax_lse` output from the flash attention kernels.
-
-### Limits
-
-1. There are some arithmetic errors with the current implementation. The reason for this is probably that flash attention will return the bf16 value for each block, so we cannot accumulate the values with the original fp32 ones.
-
-2. And also because we need to save extra fp32 buffer during computation, the memory usage would be higher than the theoretic limit.
-
-### Test
-
-```bash
-torchrun --nproc_per_node 8 test/test_ring_flash_attn_func.py
-torchrun --nproc_per_node 8 test/test_ring_flash_attn_varlen_func.py
-torchrun --nproc_per_node 8 test/test_zigzag_ring_flash_attn_func.py
-torchrun --nproc_per_node 8 test/test_zigzag_ring_flash_attn_varlen_func.py
-torchrun --nproc_per_node 8 test/test_stripe_flash_attn_func.py
-```
-
-
-## TODOs
-
-1. Integrates other Ring-Attention Versions, for example [ring-attention-pytorch](https://github.com/lucidrains/ring-attention-pytorch)
-
-2. Apply `LongContextAttention` in DeepSpeed.
+2. Apply `LongContextAttention` in DeepSpeed and Megatron.
 
 ## Citation
 ```
