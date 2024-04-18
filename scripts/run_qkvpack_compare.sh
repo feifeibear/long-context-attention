@@ -10,12 +10,11 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7"
 # export NCCL_IB_QPS_PER_CONNECTION=4
 # export NCCL_IB_TC=160
 # export NCCL_IB_TIMEOUT=22
-export NCCL_P2P=0
+# export NCCL_P2P=0
 
 # torchrun --nproc_per_node 8 test/test_hybrid_attn.py
 
 FWD_FLAG="--fwd_only"
-NHEADS=32
 
 
 
@@ -25,6 +24,8 @@ NHEADS=32
 # SEQLEN=512
 SEQLEN=16384
 # SEQLEN=32768 #128K
+
+NHEADS=32
 
 # HEAD_SIZE=128
 HEAD_SIZE=32
@@ -37,8 +38,8 @@ GPU_NUM=8
 
 # NHEADS // GROUP_NUM > ulysses_degree
 
-for RING_IMPL_TYPE in "basic"; do
-for ULYSSES_DEGREE in 1; do
+for RING_IMPL_TYPE in "basic" "zigzag" "strip"; do
+for ULYSSES_DEGREE in 8 4 2 1; do
 
 torchrun --nproc_per_node $GPU_NUM benchmark/benchmark_longctx_qkvpacked.py \
 --nheads $NHEADS \
@@ -49,24 +50,17 @@ torchrun --nproc_per_node $GPU_NUM benchmark/benchmark_longctx_qkvpacked.py \
 --ring_impl_type $RING_IMPL_TYPE \
 $FWD_FLAG
 
-# torchrun --nproc_per_node $GPU_NUM benchmark/benchmark_longctx.py \
-# --nheads $NHEADS \
-# --group_num $GROUP_NUM \
-# --batch_size $BS \
-# --seq_len $SEQLEN \
-# --head_size $HEAD_SIZE \
-# --ulysses_degree $ULYSSES_DEGREE \
-# --ring_impl_type $RING_IMPL_TYPE \
-# $FWD_FLAG
+torchrun --nproc_per_node $GPU_NUM benchmark/benchmark_longctx.py \
+--nheads $NHEADS \
+--group_num $GROUP_NUM \
+--batch_size $BS \
+--seq_len $SEQLEN \
+--head_size $HEAD_SIZE \
+--ulysses_degree $ULYSSES_DEGREE \
+--ring_impl_type $RING_IMPL_TYPE \
+$FWD_FLAG
 
 done
 done
 
-
-# docker exec -it 888c58e74578 bash
-
-# torchrun --nproc_per_node 4 test/test_hybrid_attn.py
-
-# torchrun --nproc_per_node 4 test/test_hybrid_qkvpacked_attn.py
-# torchrun --nproc_per_node 2 ./test/test_hybrid_attn.py
 
