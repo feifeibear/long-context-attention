@@ -42,7 +42,10 @@ torchrun --nproc_per_node 8 test/test_hybrid_qkvpacked_attn.py
 
 ### Benchmark
 
+<<<<<<< HEAD
 ### Test
+=======
+>>>>>>> main
 
 ```bash
 bash ./scripts/run_qkvpack_compare.sh
@@ -57,9 +60,15 @@ Benchmarks were conducted on an 8xA100 NVLink machine, and the results are as fo
 
 Some Conclusions:
 
+<<<<<<< HEAD
 1. If head number is enough, Ulysses outperforms Ring-Attention. The All-to-All communication of Ulysses is highly efficient within a single machine, with a very low overhead ratio. In contrast, Ring splits computation and communication, which increases the overall of computation time, and even with complete overlap, it is slower than Ulysses.
 
 2. QKV packed (`LongContextAttentionQKVPacked`) is better than QKV no packed (`LongContextAttention`) version, with the difference becoming more pronounced as the sequence length decreases. MAQ and GQA can only use the no packed version.
+=======
+1. If the head number is enough, Ulysses outperforms Ring-Attention. The All-to-All communication of Ulysses is highly efficient within a single machine, with a very low overhead ratio. In contrast, Ring splits computation and communication, which increases the overall of computation time, and even with complete overlap, it is slower than Ulysses.
+
+2. QKV packed (`LongContextAttentionQKVPacked`) is better than the QKV no packed (`LongContextAttention`) version, with the difference becoming more pronounced as the sequence length decreases. MAQ and GQA can only use the no packed version.
+>>>>>>> main
 
 3. Among the variants of the Ring-Attention implementation, `zigzag` and `stripe` perform better than `basic`. Typically, zigzag is slightly better than stripe, but as the sequence length increases, the difference between zigzag and stripe becomes less noticeable. It is worth noting that both zigzag and stripe have specific layout requirements for the sequence dimension.
 
