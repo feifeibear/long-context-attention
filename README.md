@@ -20,7 +20,7 @@ Even with the communication and computation processes fully overlapped, the tota
 Furthermore, Ring-Attention utilizes asynchronous peer-to-peer communication, which not only has a lower bandwidth utilization compared to collective communication methods but also poses the risk of potential communication deadlocks in large-scale deployments.
 
 
-## LongContextAttention (Hybrid Ulysses-Ring Attention)
+## LongContextAttention
 
 `LongContextAttention` is a **sequence parallel approach** that integrates the strengths of DeepSpeed-Ulysses-Attention and Ring-Attention while addressing the limitations of both methods.
 
@@ -33,6 +33,11 @@ Furthermore, Ring-Attention utilizes asynchronous peer-to-peer communication, wh
 3. Enhanced Performance: We achieve superior performance benchmarks over both Ulysses and Ring, offering a more efficient solution for attention mechanism computations.
 
 4. Compatibility with Advanced Parallel Strategies: LongContextAttention is fully compatible with other sophisticated parallelization techniques, including Tensor Parallelism, ZeRO, and Pipeline Parallelism, ensuring seamless integration with the latest advancements in parallel computing.
+
+### Use in Megatron-DeepSpeed
+
+[Megatron-DeepSpeed](https://github.com/microsoft/Megatron-DeepSpeed) employs Ulysses as its method for sequence parallelism and also supports a hybrid parallelism model known as Ulysses-DataParallel. If you're interested in integrating the LongContextAttention mechanism into Megatron-DeepSpeed, a few lines of code modification are all that's required.
+For detailed instructions on implementing this change, please refer to the provided patch file located at [./patches/Megatron-DeepSpeed.patch](./patches/Megatron-DeepSpeed.patch). This patch has been constructed based on the commit with the identifier `bcedecd1ff788d4d363f3365fd396053a08d65be`.
 
 ### Test
 
@@ -105,7 +110,6 @@ The best throughput is achieved when `ulysses_degree`=8 and ring_attn_impl as `z
 
 1. Integrates other Ring-Attention Versions, for example [ring-attention-pytorch](https://github.com/lucidrains/ring-attention-pytorch).
 
-2. Apply `LongContextAttention` in DeepSpeed and Megatron.
 
 **Looking for your contributions and feedbacks.**
 
