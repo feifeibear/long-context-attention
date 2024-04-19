@@ -36,7 +36,7 @@ Furthermore, Ring-Attention utilizes asynchronous peer-to-peer communication, wh
 
 ### Use in Megatron-DeepSpeed
 
-[Megatron-DeepSpeed](https://github.com/microsoft/Megatron-DeepSpeed) employs Ulysses as its method for sequence parallelism and also supports a hybrid parallelism model known as Ulysses-DataParallel. If you're interested in integrating the LongContextAttention mechanism into Megatron-DeepSpeed, a few lines of code modification are all that's required.
+[Megatron-DeepSpeed](https://github.com/microsoft/Megatron-DeepSpeed) employs Ulysses as its method for sequence parallelism and also supports hybrid parallelism as Ulysses-DataParallel. Unfortunately, it does not support Tensor Parallel + Ulysses. If you're interested in integrating the LongContextAttention mechanism into Megatron-DeepSpeed, a few lines of code modification are all that's required.
 For detailed instructions on implementing this change, please refer to the provided patch file located at [./patches/Megatron-DeepSpeed.patch](./patches/Megatron-DeepSpeed.patch). This patch has been constructed based on the commit with the identifier `bcedecd1ff788d4d363f3365fd396053a08d65be`.
 
 ### Test
