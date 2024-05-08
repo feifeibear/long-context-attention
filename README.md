@@ -9,7 +9,7 @@ The project is built on [zhuzilin/ring-flash-attention](https://github.com/zhuzi
 
 ## What's wrong with Ulysses and Ring?
 
-- Ulysses is sensitive to the number of heads. 
+- Ulysses is sensitive to the number of attention heads. 
 The parallelism degree in Ulysses cannot exceed the number of heads. 
 Consequently, it is not suitable for GQA (Grouped Query Attention) and MQA (Multi-Query Attention) scenarios. For instance, Ulysses does not operate effectively with a single head. 
 In addition, since Tensor Parallelism also requires the division across the head number dimension, achieving compatibility between Ulysses and TP can be challenging.
@@ -23,6 +23,10 @@ Furthermore, Ring-Attention utilizes asynchronous peer-to-peer communication, wh
 ## LongContextAttention
 
 `LongContextAttention` is a **sequence parallel approach** that integrates the strengths of DeepSpeed-Ulysses-Attention and Ring-Attention while addressing the limitations of both methods.
+
+<p align="center">
+    <img src="./media/hybrid_seqparallel.png">
+</p>
 
 **Features:**
 
@@ -52,12 +56,17 @@ torchrun --nproc_per_node 8 test/test_hybrid_qkvpacked_attn.py
 bash ./scripts/run_qkvpack_compare.sh
 ```
 
-Benchmarks were conducted on an 8xA100 NVLink machine, and the results are as follows:
+On an 8xA100 NVLink machine, and the benchmark results are as follows:
 
 <p align="center">
     <img src="./media/benchmark_results.png">
 </p>
 
+On an 8xL20 PCIe machine and an 4xA100 PCIe machine, and the benchmark results are as follows:
+
+<p align="center">
+    <img src="./media/pcie_machine.jpg">
+</p>
 
 Some Conclusions:
 
@@ -67,44 +76,7 @@ Some Conclusions:
 
 3. Among the variants of the Ring-Attention implementation, `zigzag` and `stripe` perform better than `basic`. Typically, zigzag is slightly better than stripe, but as the sequence length increases, the difference between zigzag and stripe becomes less noticeable. It is worth noting that both zigzag and stripe have specific layout requirements for the sequence dimension.
 
-
-### Case Study
-
-The following two pictures demonstrate the throughput (iters/sec) of different sequence parallel approaches on 8xA100 connected with NVLINK.
-Note that no-comm is a flash-attention version that conducts flash-attn locally without communications. 
-It can be viewed as the upper bound of the sequence parallel implementation.
-
-- head num=8, local seqlen=8K (global seqlen=64K)
-
-The throughput (iters/sec) of different LongContextAttention settings (ring_degree x ulysses_degree) is shown in the following table. 
-We observed that the best throughput is achieved when `ulysses_degree`=4 and ring_attn_impl as `strip`.
-
-| (ring_degree x ulysses_degree) | 8x1   | 4x2   | 2x4   | 1x8   |
-|--------------------------------|-------|-------|-------|-------|
-| basic                          | 8.161 | 11.151| **12.84** | 10.588|
-| zigzag                         | 8.211 | 11.024| **12.864**| 10.679|
-| strip                          | 8.464 | 10.964| **13.105**| 10.589|
-
-
-In the figure presented below, we contrast the performance of LongContextAttention with that of ring-flash-attention. Notably, LongContextAttention demonstrates a remarkable **54%** and **75%** increase in throughpu for FWD+BWD and FWD-only, showcasing its superior efficiency over the ring-flash-attention approach.
-
-
-![head=8](./media/long_ctx_h8.png)
-
-- head num=2, note that Ulysses degree is limited to <=2, local seqlen=8K (global seqlen=32K)
-
-The best throughput is achieved when `ulysses_degree`=2 and ring_attn_impl as `zigzag`. We observed 18% and 31% throughput improvement for FWD+BWD and FWD-only.
-
-![head=2](./media/long_ctx_h2.png)
-
-
-- GQA, head_num=64, group_num=8, local seqlen=4K (global seqlen=32K). Reproduce by running [./scripts/run_gqa.sh](./scripts/run_gqa.sh)
-
-
-The best throughput is achieved when `ulysses_degree`=8 and ring_attn_impl as `zigzag`. We observed 15% and 11% throughput improvement for FWD+BWD and FWD-only.
-
-
-![gqa](./media/gqa.png)
+4. Hybrid parallelism works well to heterogeneous network devices. For example, on an 8-GPU L20 setup, the optimal performance is achieved when ulysess_degree is set to 2 and ring_degree is set to 4.
 
 ## TODOs
 
