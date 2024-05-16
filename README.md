@@ -87,32 +87,12 @@ Some Conclusions:
 
 ## Citation
 ```
-@misc{fang2024long,
-      title={Long-Context-Attention: Distributed Attention Implementations for Long Context LLM Model Training},
-      author={Jiarui Fang},
-      year={2024},
-      publisher = {GitHub},
-      journal = {GitHub repository},
-      howpublished = {\url{https://github.com/feifeibear/long-context-attention}},
-}
-@article{jacobs2023deepspeed,
-      title={Deepspeed ulysses: System optimizations for enabling training of extreme long sequence transformer models},
-      author={Jacobs, Sam Ade and Tanaka, Masahiro and Zhang, Chengming and Zhang, Minjia and Song, Leon and Rajbhandari, Samyam and He, Yuxiong},
-      journal={arXiv preprint arXiv:2309.14509},
-      year={2023}
-}
-@article{liu2023ring,
-      title={Ring attention with blockwise transformers for near-infinite context},
-      author={Liu, Hao and Zaharia, Matei and Abbeel, Pieter},
-      journal={arXiv preprint arXiv:2310.01889},
-      year={2023}
-}
-@misc{zhu2024ring,
-      title={Ring Flash Attention},
-      author={Zilin Zhu and Yang Yu},
-      year={2024},
-      publisher = {GitHub},
-      journal = {GitHub repository},
-      howpublished={\url{https://github.com/zhuzilin/ring-flash-attention}},
+@article{fang2024unified,
+  title={A Unified Sequence Parallelism Approach for Long Context Generative AI},
+  author={Fang, Jiarui and Zhao, Shangchun},
+  journal={arXiv preprint arXiv:2405.07719},
+  year={2024}
 }
 ```
+
+The paper can be found at [here](./media/unified_seq_parallel_tech_report.pdf).
