@@ -22,7 +22,7 @@ Furthermore, Ring-Attention utilizes asynchronous peer-to-peer communication, wh
 
 ## LongContextAttention
 
-`LongContextAttention` is a **sequence parallel approach** that integrates the strengths of DeepSpeed-Ulysses-Attention and Ring-Attention while addressing the limitations of both methods.
+`LongContextAttention` is a **unified sequence parallel approach** that hybrid DeepSpeed-Ulysses-Attention and Ring-Attention therefore addressing the limitations of both methods.
 
 <p align="center">
     <img src="./media/hybrid_seqparallel.png">
@@ -32,7 +32,7 @@ Furthermore, Ring-Attention utilizes asynchronous peer-to-peer communication, wh
 
 1. No Limitation on the Number of Heads: Our approach does not impose a restriction on the number of heads, providing greater flexibility for various attention mechanisms.
 
-2. Comprehensive Capability: It encompasses the functionalities of both Ulysses and Ring models. By setting the ulysses_degree to the sequence parallel degree, the system operates identically to Ulysses. Conversely, setting the ulysses_degree to 1 mirrors the functionality of Ring.
+2. Cover the Capability of either Ulysses and Ring: By setting the ulysses_degree to the sequence parallel degree, the system operates identically to Ulysses. Conversely, setting the ulysses_degree to 1 mirrors the functionality of Ring.
 
 3. Enhanced Performance: We achieve superior performance benchmarks over both Ulysses and Ring, offering a more efficient solution for attention mechanism computations.
 
@@ -42,6 +42,25 @@ Furthermore, Ring-Attention utilizes asynchronous peer-to-peer communication, wh
 
 [Megatron-DeepSpeed](https://github.com/microsoft/Megatron-DeepSpeed) employs Ulysses as its method for sequence parallelism and also supports hybrid parallelism as Ulysses-DataParallel. Unfortunately, it does not support Tensor Parallel + Ulysses. If you're interested in integrating the LongContextAttention mechanism into Megatron-DeepSpeed, a few lines of code modification are all that's required.
 For detailed instructions on implementing this change, please refer to the provided patch file located at [./patches/Megatron-DeepSpeed.patch](./patches/Megatron-DeepSpeed.patch). This patch has been constructed based on the commit with the identifier `bcedecd1ff788d4d363f3365fd396053a08d65be`.
+
+
+## Best Practice for 4D Parallelism
+
+
+We analyze the impact of introducing Sequnce Parallelism to Data/ZeRO/Tensor/Pipeline Parallelism in a technique report, which can be found at [here](./media/unified_seq_parallel_tech_report.pdf).
+
+Some best practices are listed here:
+
+1. We suggest using Unified-SP in place of SP-Ring and SP-Ulysses, as it encompasses the capabilities of both while offering additional benefits.
+
+2. DP (data parallelism) vs SP: We suggest prioritizing the use of DP over SP if possible. 
+Only when the batch size (bs) is insufficient for partitioning should one consider whether to employ SP
+
+3.  when utilizing SP, it should always be used in conjunction wit ZeRO-1/2.
+
+4.  Switching TP (tensor parallelism) to SP cannot increase the sequence length in training. SP+ZeRO3 can train a similar sequence length as TP-sp. We suggest that SP may have an advantage over TP when employing GQA in terms of communication cost, as GQA can reduce the communication cost of SP without affecting TP.
+
+5. Setting a higher parallel degree of SP parallelism is possible, which may need to set a large ring degree when the head number is limited, to train a long sequence across a greater number of computational devices. But TP could not be set a high parallel.
 
 ### Test
 
@@ -94,5 +113,3 @@ Some Conclusions:
   year={2024}
 }
 ```
-
-The paper can be found at [here](./media/unified_seq_parallel_tech_report.pdf).
