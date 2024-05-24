@@ -1,4 +1,7 @@
 import torch
+import torch.distributed as dist
+
+from yunchang.globals import PROCESS_GROUP
 
 
 def stripe_extract_local(value, rank, world_size, rd, ud, *args, **kwargs):
@@ -12,9 +15,6 @@ def stripe_extract_local(value, rank, world_size, rd, ud, *args, **kwargs):
         raise ValueError("value dim should be 4 or 5")
 
     # (ud, L, rd)
-    r_rank = rank // ud
-    u_rank = rank % ud
-
     value = value.reshape(batch_size, seqlen // rd, rd, -1).contiguous()
     value = value.transpose(1, 2).reshape(batch_size, seqlen, -1).contiguous()
     value = value.chunk(world_size, dim=1)[rank]
@@ -42,8 +42,9 @@ def zigzag_extract_local(value, rank, world_size, rd, ud, dim=1, *args, **kwargs
     value_chunks = value.chunk(2 * rd, dim=dim)
 
     # TODO assert ulyssess on low dim
-    r_rank = rank // ud
-    u_rank = rank % ud
+    r_rank = dist.get_rank(group=PROCESS_GROUP.RING_PG)
+    u_rank = dist.get_rank(group=PROCESS_GROUP.ULYSSES_PG)
+
     local_value = torch.cat(
         [value_chunks[r_rank], value_chunks[2 * rd - r_rank - 1]], dim=dim
     ).chunk(ud, dim=dim)[u_rank]
