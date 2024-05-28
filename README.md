@@ -1,10 +1,10 @@
-# Long-Context-Attention (YunChang-云长) : A Unified Sequence Parallel (USP) Attention for Long Context LLM Model Training and Inference
+# Long-Context-Attention (YunChang-云长): A Unified Sequence Parallel (USP) Attention for Long Context LLM Model Training and Inference
 
 <p align="center">
     <img src="./media/yun_chang.jpg" width="200" />
 </p>
 
-This repo provides a sequence parallel approaches which synergizes the strengths of two popular distributed attentions, i.e. DeepSpeed-Ulysses-Attention and Ring-Attention, delivering a more general and stronger versatility and better performance. 
+This repo provides a sequence parallel approaches that synergizes the strengths of two popular distributed attentions, i.e. DeepSpeed-Ulysses-Attention and Ring-Attention, delivering a more general and stronger versatility and better performance. 
 The project is built on [zhuzilin/ring-flash-attention](https://github.com/zhuzilin/ring-flash-attention) and refers to the [DeepSpeed-Ulysses](https://github.com/microsoft/DeepSpeed/blob/master/blogs/deepspeed-ulysses/README.md).
 
 ## What's wrong with Ulysses and Ring?
@@ -12,7 +12,7 @@ The project is built on [zhuzilin/ring-flash-attention](https://github.com/zhuzi
 - Ulysses is sensitive to the number of attention heads. 
 The parallelism degree in Ulysses cannot exceed the number of heads. 
 Consequently, it is not suitable for GQA (Grouped Query Attention) and MQA (Multi-Query Attention) scenarios. For instance, Ulysses does not operate effectively with a single head. 
-In addition, since Tensor Parallelism also requires the division across the head number dimension, achieving compatibility between Ulysses and TP can be challenging.
+In addition, since Tensor Parallelism also requires division across the head number dimension, achieving compatibility between Ulysses and TP can be challenging.
 
 - Ring-Attention is ineffient than Ulysses in computation and communication.
 Ring-Attention segments the Query, Key, and Value (QKV) into smaller blocks, which can lead to a decrease in efficiency when using FlashAttention.
@@ -22,17 +22,12 @@ Furthermore, Ring-Attention utilizes asynchronous peer-to-peer communication, wh
 
 ## LongContextAttention, a.k.a Unified Sequence Parallelism and Hybrid Sequence Parallelism
 
-`LongContextAttention` is a **unified sequence parallel** , also know as **hybrid sequence parallel** ,that hybrid DeepSpeed-Ulysses-Attention and Ring-Attention therefore addressing the limitations of both methods.
+`LongContextAttention` is a **unified sequence parallel** , also known as **hybrid sequence parallel** ,that hybrid DeepSpeed-Ulysses-Attention and Ring-Attention therefore addressing the limitations of both methods.
 
 <p align="center">
     <img src="./media/hybrid_seqparallel.png">
 </p>
 
-The loss curves for Data Parallel (DP) and Unified Sequence Parallel (ulysses=2+ring=2) are closely aligned, as illustrated in the figure. This alignment confirms the accuracy of the unifed sequence parallel.
-
-<p align="center">
-    <img src="./media/loss.png">
-</p>
 
 **Features:**
 
@@ -50,6 +45,11 @@ The loss curves for Data Parallel (DP) and Unified Sequence Parallel (ulysses=2+
 For detailed instructions on implementing this change, please refer to the provided patch file located at [./patches/Megatron-DeepSpeed.patch](./patches/Megatron-DeepSpeed.patch). This patch has been constructed based on the commit with the identifier `bcedecd1ff788d4d363f3365fd396053a08d65be`.
 
 
+The loss curves for Data Parallel (DP) and Unified Sequence Parallel (ulysses=2+ring=2) are closely aligned, as illustrated in the figure. This alignment confirms the accuracy of the unified sequence parallel.
+
+<p align="center">
+    <img src="./media/loss.png">
+</p>
 
 ## Best Practice for 4D Parallelism
 
@@ -82,13 +82,13 @@ torchrun --nproc_per_node 8 test/test_hybrid_qkvpacked_attn.py
 bash ./scripts/run_qkvpack_compare.sh
 ```
 
-On an 8xA100 NVLink machine, and the benchmark results are as follows:
+On an 8xA100 NVLink machine, the benchmark results are as follows:
 
 <p align="center">
     <img src="./media/benchmark_results.png">
 </p>
 
-On an 8xL20 PCIe machine and an 4xA100 PCIe machine, and the benchmark results are as follows:
+On an 8xL20 PCIe machine and a 4xA100 PCIe machine, the benchmark results are as follows:
 
 <p align="center">
     <img src="./media/pcie_machine.jpg">
