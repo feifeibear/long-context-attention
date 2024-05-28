@@ -1,11 +1,16 @@
 # Long-Context-Attention (YunChang-云长): A Unified Sequence Parallel (USP) Attention for Long Context LLM Model Training and Inference
 
+[\[Tech Report\] USP: A Unified Sequence Parallelism Approach for Long Context Generative AI](https://arxiv.org/abs/2405.07719)
+
+
 <p align="center">
     <img src="./media/yun_chang.jpg" width="200" />
 </p>
 
-This repo provides a sequence parallel approaches that synergizes the strengths of two popular distributed attentions, i.e. DeepSpeed-Ulysses-Attention and Ring-Attention, delivering a more general and stronger versatility and better performance. 
+This repo provides a sequence parallel approach that synergizes the strengths of two popular distributed attentions, i.e. DeepSpeed-Ulysses-Attention and Ring-Attention, delivering a more general and stronger versatility and better performance. 
 The project is built on [zhuzilin/ring-flash-attention](https://github.com/zhuzilin/ring-flash-attention) and refers to the [DeepSpeed-Ulysses](https://github.com/microsoft/DeepSpeed/blob/master/blogs/deepspeed-ulysses/README.md).
+
+
 
 ## What's wrong with Ulysses and Ring?
 
@@ -54,7 +59,7 @@ The loss curves for Data Parallel (DP) and Unified Sequence Parallel (ulysses=2+
 ## Best Practice for 4D Parallelism
 
 
-We analyze the impact of introducing Sequnce Parallelism to Data/ZeRO/Tensor/Pipeline Parallelism in a technique report, which can be found at [here](./media/unified_seq_parallel_tech_report.pdf).
+We analyze the impact of introducing Sequnce Parallelism to Data/ZeRO/Tensor/Pipeline Parallelism in a technique report, which can be found at [here](https://arxiv.org/abs/2405.07719).
 
 Some best practices are listed here:
 
