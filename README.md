@@ -1,4 +1,4 @@
-# Long-Context-Attention (YunChang-云长): Sequence Parallel Attention for Long Context LLM Model Training and Inference
+# Long-Context-Attention (YunChang-云长) : A Unified Sequence Parallel (USP) Attention for Long Context LLM Model Training and Inference
 
 <p align="center">
     <img src="./media/yun_chang.jpg" width="200" />
@@ -20,12 +20,18 @@ Even with the communication and computation processes fully overlapped, the tota
 Furthermore, Ring-Attention utilizes asynchronous peer-to-peer communication, which not only has a lower bandwidth utilization compared to collective communication methods but also poses the risk of potential communication deadlocks in large-scale deployments.
 
 
-## LongContextAttention
+## LongContextAttention, a.k.a Unified Sequence Parallelism and Hybrid Sequence Parallelism
 
-`LongContextAttention` is a **unified sequence parallel approach** that hybrid DeepSpeed-Ulysses-Attention and Ring-Attention therefore addressing the limitations of both methods.
+`LongContextAttention` is a **unified sequence parallel** , also know as **hybrid sequence parallel** ,that hybrid DeepSpeed-Ulysses-Attention and Ring-Attention therefore addressing the limitations of both methods.
 
 <p align="center">
     <img src="./media/hybrid_seqparallel.png">
+</p>
+
+The loss curves for Data Parallel (DP) and Unified Sequence Parallel (ulysses=2+ring=2) are closely aligned, as illustrated in the figure. This alignment confirms the accuracy of the unifed sequence parallel.
+
+<p align="center">
+    <img src="./media/loss.png">
 </p>
 
 **Features:**
@@ -42,6 +48,7 @@ Furthermore, Ring-Attention utilizes asynchronous peer-to-peer communication, wh
 
 [Megatron-DeepSpeed](https://github.com/microsoft/Megatron-DeepSpeed) employs Ulysses as its method for sequence parallelism and also supports hybrid parallelism as Ulysses-DataParallel. Unfortunately, it does not support Tensor Parallel + Ulysses. If you're interested in integrating the LongContextAttention mechanism into Megatron-DeepSpeed, a few lines of code modification are all that's required.
 For detailed instructions on implementing this change, please refer to the provided patch file located at [./patches/Megatron-DeepSpeed.patch](./patches/Megatron-DeepSpeed.patch). This patch has been constructed based on the commit with the identifier `bcedecd1ff788d4d363f3365fd396053a08d65be`.
+
 
 
 ## Best Practice for 4D Parallelism
@@ -97,17 +104,16 @@ Some Conclusions:
 
 4. Hybrid parallelism works well to heterogeneous network devices. For example, on an 8-GPU L20 setup, the optimal performance is achieved when ulysess_degree is set to 2 and ring_degree is set to 4.
 
-## TODOs
+## Projects apply our methods
 
-1. Integrates other Ring-Attention Versions, for example [ring-attention-pytorch](https://github.com/lucidrains/ring-attention-pytorch).
+[Ascend/AscendSpeed](https://gitee.com/ascend/AscendSpeed/blob/master/docs/features/hybrid-context-parallel.md)
 
-
-**Looking for your contributions and feedbacks.**
+[EasyContext](https://github.com/jzhang38/EasyContext)
 
 ## Citation
 ```
 @article{fang2024unified,
-  title={A Unified Sequence Parallelism Approach for Long Context Generative AI},
+  title={USP: A Unified Sequence Parallelism Approach for Long Context Generative AI},
   author={Fang, Jiarui and Zhao, Shangchun},
   journal={arXiv preprint arXiv:2405.07719},
   year={2024}
