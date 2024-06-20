@@ -11,7 +11,33 @@ from torch import Tensor
 import torch.distributed as dist
 from flash_attn import flash_attn_func
 from yunchang.comm.all_to_all import SeqAllToAll4D
+import torch.nn.functional as F
 
+def torch_attn(query,
+            key,
+            value,
+            dropout_p=0.0, 
+            softmax_scale=None, 
+            causal=False,
+            window_size=(-1, -1), alibi_slopes=None, deterministic=False,
+            return_attn_probs=False,
+            ):
+    batch_size, seq_len, hs, hd = query.size()
+    query = query.view(batch_size, -1, hs, hd).transpose(1, 2)
+    key = key.view(batch_size, -1, hs, hd).transpose(1, 2)
+    value = value.view(batch_size, -1, hs, hd).transpose(1, 2)
+
+    # the output of sdp = (batch, num_heads, seq_len, head_dim)
+    # TODO: add support for attn.scale when we move to Torch 2.1
+    hidden_states = F.scaled_dot_product_attention(
+        query, key, value, dropout_p=dropout_p, is_causal=causal
+    )
+
+    hidden_states = hidden_states.transpose(1, 2).reshape(
+        batch_size, -1, hs, hd
+    )
+    hidden_states = hidden_states.to(query.dtype)
+    return hidden_states
 
 class UlyssesAttention(torch.nn.Module):
     """Initialization.
@@ -28,13 +54,14 @@ class UlyssesAttention(torch.nn.Module):
         sequence_process_group: dist.ProcessGroup = None,
         scatter_idx: int = 2,
         gather_idx: int = 1,
+        use_fa : bool = True
     ) -> None:
 
         super(UlyssesAttention, self).__init__()
         self.spg = sequence_process_group
         self.scatter_idx = scatter_idx
         self.gather_idx = gather_idx
-
+        self.use_fa = use_fa
     def forward(
         self,
         query: Tensor,
@@ -70,7 +97,12 @@ class UlyssesAttention(torch.nn.Module):
         k = SeqAllToAll4D.apply(self.spg, key, self.scatter_idx, self.gather_idx)
         v = SeqAllToAll4D.apply(self.spg, value, self.scatter_idx, self.gather_idx)
 
-        context_layer = flash_attn_func(
+        if self.use_fa:
+            fn = flash_attn_func
+        else:
+            fn = torch_attn
+            
+        context_layer = fn(
             q,
             k,
             v,
@@ -93,3 +125,4 @@ class UlyssesAttention(torch.nn.Module):
 
         # out e.g., [s/p::h]
         return output
+
