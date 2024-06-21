@@ -54,7 +54,7 @@ class UlyssesAttention(torch.nn.Module):
         sequence_process_group: dist.ProcessGroup = None,
         scatter_idx: int = 2,
         gather_idx: int = 1,
-        use_fa : bool = True
+        use_fa : bool = False 
     ) -> None:
 
         super(UlyssesAttention, self).__init__()
@@ -64,7 +64,7 @@ class UlyssesAttention(torch.nn.Module):
         self.use_fa = use_fa
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         gpu_name = torch.cuda.get_device_name(device)
-        if "Turing" in gpu_name or "T4" in gpu_name:
+        if "Turing" in gpu_name or "Tesla" in gpu_name or "T4" in gpu_name:
             self.use_fa = False
 
     def forward(
