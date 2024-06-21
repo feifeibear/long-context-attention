@@ -54,7 +54,7 @@ class UlyssesAttention(torch.nn.Module):
         sequence_process_group: dist.ProcessGroup = None,
         scatter_idx: int = 2,
         gather_idx: int = 1,
-        use_fa : bool = False 
+        use_fa : bool = True 
     ) -> None:
 
         super(UlyssesAttention, self).__init__()
