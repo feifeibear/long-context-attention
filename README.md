@@ -34,6 +34,17 @@ Furthermore, Ring-Attention utilizes asynchronous peer-to-peer communication, wh
 </p>
 
 
+### Install
+
+Option 1: pip install from pypi. 
+
+`pip install yunchang==0.2`
+
+Option 2: build from local.
+
+`pip install .`
+
+
 **Features:**
 
 1. No Limitation on the Number of Heads: Our approach does not impose a restriction on the number of heads, providing greater flexibility for various attention mechanisms.
@@ -44,17 +55,15 @@ Furthermore, Ring-Attention utilizes asynchronous peer-to-peer communication, wh
 
 4. Compatibility with Advanced Parallel Strategies: LongContextAttention is fully compatible with other sophisticated parallelization techniques, including Tensor Parallelism, ZeRO, and Pipeline Parallelism, ensuring seamless integration with the latest advancements in parallel computing.
 
-### Use in Megatron-DeepSpeed
-
-[Megatron-DeepSpeed](https://github.com/microsoft/Megatron-DeepSpeed) employs Ulysses as its method for sequence parallelism and also supports hybrid parallelism as Ulysses-DataParallel. Unfortunately, it does not support Tensor Parallel + Ulysses. If you're interested in integrating the LongContextAttention mechanism into Megatron-DeepSpeed, a few lines of code modification are all that's required.
-For detailed instructions on implementing this change, please refer to the provided patch file located at [./patches/Megatron-DeepSpeed.patch](./patches/Megatron-DeepSpeed.patch). This patch has been constructed based on the commit with the identifier `bcedecd1ff788d4d363f3365fd396053a08d65be`.
-
-
+### Verified in Megatron-LM
 The loss curves for Data Parallel (DP) and Unified Sequence Parallel (ulysses=2+ring=2) are closely aligned, as illustrated in the figure. This alignment confirms the accuracy of the unified sequence parallel.
 
 <p align="center">
     <img src="./media/loss.png">
 </p>
+
+You should reorder Query tensors with [EXTRACT_FUNC_DICT](./yunchang/comm/extract_local.py) when using load-balance Ring Attention when applying the causal mask.
+In the Megatron-LM, you can reorder the input tokens before feed them into the model and apply the same reordering to RoPE parameters. See our paper for detailed instructions.
 
 ## Best Practice for 4D Parallelism
 
@@ -68,9 +77,9 @@ Some best practices are listed here:
 2. DP (data parallelism) vs SP: We suggest prioritizing the use of DP over SP if possible. 
 Only when the batch size (bs) is insufficient for partitioning should one consider whether to employ SP
 
-3.  when utilizing SP, it should always be used in conjunction wit ZeRO-1/2.
+3. Utilizing SP, it should always be used in conjunction wit ZeRO-1/2.
 
-4.  Switching TP (tensor parallelism) to SP cannot increase the sequence length in training. SP+ZeRO3 can train a similar sequence length as TP-sp. We suggest that SP may have an advantage over TP when employing GQA in terms of communication cost, as GQA can reduce the communication cost of SP without affecting TP.
+4. Unified-SP has lower communication cost than Tensor Parallel with megatron-lm sequence parallelism (TP-sp)! You can use Unified-SP to replace TP for better speed. However, now switching TP (tensor parallelism) to SP+ZeRO2 cannot increase the sequence length in training. SP+ZeRO3 can train a similar sequence length as TP-sp. We suggest that SP may have an advantage over TP when employing GQA in terms of communication cost, as GQA can reduce the communication cost of SP without affecting TP.
 
 5. Setting a higher parallel degree of SP parallelism is possible, which may need to set a large ring degree when the head number is limited, to train a long sequence across a greater number of computational devices. But TP could not be set a high parallel.
 
