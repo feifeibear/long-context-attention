@@ -120,6 +120,10 @@ Some Conclusions:
 
 ## Projects apply our methods
 
+[PipeFusion](https://github.com/PipeFusion/PipeFusion)
+
+[Odysseus-Transformer](https://github.com/feifeibear/Odysseus-Transformer)
+
 [Ascend/AscendSpeed](https://gitee.com/ascend/AscendSpeed/blob/master/docs/features/hybrid-context-parallel.md)
 
 [EasyContext](https://github.com/jzhang38/EasyContext)
