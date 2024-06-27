@@ -84,12 +84,18 @@ def init_prof(use_profiler):
     )
     return ctx
 
+import os
+
+def get_local_rank():
+    local_rank = int(os.getenv('LOCAL_RANK', '0'))
+    return local_rank
 
 def benchmark(num_iter=100, forward_only=True, log=True, profile=False):
     dtype = torch.bfloat16
     rank = dist.get_rank()
+    local_rank = get_local_rank()
     world_size = dist.get_world_size()
-    device = torch.device(f"cuda:{rank}")
+    device = torch.device(f"cuda:{local_rank}")
     torch.cuda.set_device(device)
 
     batch_size = args.batch_size

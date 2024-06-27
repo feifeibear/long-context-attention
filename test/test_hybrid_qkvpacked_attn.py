@@ -31,17 +31,24 @@ def log(msg, a, rank0_only=False):
             )
         dist.barrier()
 
+import os
+
+def get_local_rank():
+    local_rank = int(os.getenv('LOCAL_RANK', '0'))
+    return local_rank
 
 def test(ring_impl_type="basic"):
     ring_fn = RING_IMPL_QKVPACKED_DICT[ring_impl_type]
 
     rank = dist.get_rank()
+    local_rank = get_local_rank()
     world_size = dist.get_world_size()
     dtype = torch.bfloat16
-    device = torch.device(f"cuda:{rank}")
+    device = torch.device(f"cuda:{local_rank}")
+    print(f"rank {rank} local_rank {local_rank} world_size {world_size}")
 
     batch_size = 2
-    seqlen = 3816
+    seqlen = 1024 
     nheads = 8
     d = 32
     dropout_p = 0
@@ -51,7 +58,7 @@ def test(ring_impl_type="basic"):
     assert seqlen % world_size == 0
     assert d % 8 == 0
 
-    sp_ulysses_degree = world_size  # min(world_size, nheads)
+    sp_ulysses_degree = 1 # min(world_size, nheads)
     sp_ring_degree = world_size // sp_ulysses_degree
 
     set_seq_parallel_pg(sp_ulysses_degree, sp_ring_degree, rank, world_size)
