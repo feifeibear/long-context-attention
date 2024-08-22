@@ -118,15 +118,14 @@ Some Conclusions:
 
 4. Hybrid parallelism works well to heterogeneous network devices. For example, on an 8-GPU L20 setup, the optimal performance is achieved when ulysess_degree is set to 2 and ring_degree is set to 4.
 
-## Projects apply our methods
+## Projects apply USP
+I am honored that this repository has contributed to the following projects:
 
-[PipeFusion](https://github.com/PipeFusion/PipeFusion)
-
-[Odysseus-Transformer](https://github.com/feifeibear/Odysseus-Transformer)
-
-[Ascend/AscendSpeed](https://gitee.com/ascend/AscendSpeed/blob/master/docs/features/hybrid-context-parallel.md)
-
-[EasyContext](https://github.com/jzhang38/EasyContext)
+1. [xdit-project/xDiT](https://github.com/xdit-project/xDiT)
+2. [NVlabs/VILA](https://github.com/NVlabs/VILA/blob/main/LongVILA.md)
+3. [feifeibear/Odysseus-Transformer](https://github.com/feifeibear/Odysseus-Transformer)
+4. [Ascend/AscendSpeed](https://gitee.com/ascend/AscendSpeed/blob/master/docs/features/hybrid-context-parallel.md)
+5. [jzhang38/EasyContext](https://github.com/jzhang38/EasyContext)
 
 ## Citation
 ```
