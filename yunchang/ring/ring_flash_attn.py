@@ -13,6 +13,7 @@ def ring_flash_attn_forward(
     dropout_p=0,
     causal=True,
     window_size=(-1, -1),
+    softcap=0.0,
     alibi_slopes=None,
     deterministic=False,
 ):
@@ -38,6 +39,7 @@ def ring_flash_attn_forward(
                 softmax_scale,
                 causal=causal and step == 0,
                 window_size=window_size,
+                softcap=softcap,
                 alibi_slopes=alibi_slopes,
                 return_softmax=True and dropout_p > 0,
             )
@@ -65,6 +67,7 @@ def ring_flash_attn_backward(
     dropout_p=0,
     causal=True,
     window_size=(-1, -1),
+    softcap=0.0,
     alibi_slopes=None,
     deterministic=False,
 ):
@@ -101,6 +104,7 @@ def ring_flash_attn_backward(
                 softmax_scale,
                 bwd_causal,
                 window_size,
+                softcap,
                 alibi_slopes,
                 deterministic,
                 rng_state=None,
@@ -145,6 +149,7 @@ class RingFlashAttnFunc(torch.autograd.Function):
         softmax_scale,
         causal,
         window_size,
+        softcap,
         alibi_slopes,
         deterministic,
         return_softmax,
@@ -165,6 +170,7 @@ class RingFlashAttnFunc(torch.autograd.Function):
             dropout_p=dropout_p,
             causal=causal,
             window_size=window_size,
+            softcap=softcap,
             alibi_slopes=alibi_slopes,
             deterministic=False,
         )
@@ -174,6 +180,7 @@ class RingFlashAttnFunc(torch.autograd.Function):
         ctx.softmax_scale = softmax_scale
         ctx.causal = causal
         ctx.window_size = window_size
+        ctx.softcap = softcap
         ctx.alibi_slopes = alibi_slopes
         ctx.deterministic = deterministic
         ctx.group = group
@@ -194,10 +201,11 @@ class RingFlashAttnFunc(torch.autograd.Function):
             dropout_p=ctx.dropout_p,
             causal=ctx.causal,
             window_size=ctx.window_size,
+            softcap=ctx.softcap,
             alibi_slopes=ctx.alibi_slopes,
             deterministic=ctx.deterministic,
         )
-        return dq, dk, dv, None, None, None, None, None, None, None, None
+        return dq, dk, dv, None, None, None, None, None, None, None, None, None
 
 
 def ring_flash_attn_qkvpacked_func(
@@ -206,6 +214,7 @@ def ring_flash_attn_qkvpacked_func(
     softmax_scale=None,
     causal=False,
     window_size=(-1, -1),
+    softcap=0.0,
     alibi_slopes=None,
     deterministic=False,
     return_attn_probs=False,
@@ -219,6 +228,7 @@ def ring_flash_attn_qkvpacked_func(
         softmax_scale,
         causal,
         window_size,
+        softcap,
         alibi_slopes,
         deterministic,
         return_attn_probs,
@@ -233,6 +243,7 @@ def ring_flash_attn_kvpacked_func(
     softmax_scale=None,
     causal=False,
     window_size=(-1, -1),
+    softcap=0.0,
     alibi_slopes=None,
     deterministic=False,
     return_attn_probs=False,
@@ -246,6 +257,7 @@ def ring_flash_attn_kvpacked_func(
         softmax_scale,
         causal,
         window_size,
+        softcap,
         alibi_slopes,
         deterministic,
         return_attn_probs,
@@ -261,6 +273,7 @@ def ring_flash_attn_func(
     softmax_scale=None,
     causal=False,
     window_size=(-1, -1),
+    softcap=0.0,
     alibi_slopes=None,
     deterministic=False,
     return_attn_probs=False,
@@ -274,6 +287,7 @@ def ring_flash_attn_func(
         softmax_scale,
         causal,
         window_size,
+        softcap,
         alibi_slopes,
         deterministic,
         return_attn_probs,
