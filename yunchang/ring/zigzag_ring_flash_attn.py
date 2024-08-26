@@ -248,7 +248,7 @@ class ZigZagRingFlashAttnFunc(torch.autograd.Function):
             alibi_slopes=ctx.alibi_slopes,
             deterministic=ctx.deterministic,
         )
-        return dq, dk, dv, None, None, None, None, None, None, None, None
+        return dq, dk, dv, None, None, None, None, None, None, None, None, None
 
 
 def zigzag_ring_flash_attn_qkvpacked_func(
