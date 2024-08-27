@@ -181,12 +181,14 @@ if __name__ == "__main__":
     # check correctness
 
     local_out_ref = out_ref.chunk(world_size, dim=1)[rank]
+    local_out_pt_ref = out_ref.chunk(world_size, dim=1)[rank]
 
     log("out", local_out, rank0_only=True)
     log("out diff", local_out_ref - local_out)
     log("ref diff", out_ref - out_pt_ref)
+    log("local ref diff", local_out_ref - local_out_pt_ref)
     # set_trace()
-    # torch.testing.assert_close(local_out, out_ref)
+    torch.testing.assert_close(local_out, local_out_ref)
     torch.testing.assert_close(out_ref, out_pt_ref, atol=1e-2, rtol=0)
 
     if use_bwd:
