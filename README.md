@@ -38,7 +38,9 @@ Furthermore, Ring-Attention utilizes asynchronous peer-to-peer communication, wh
 
 Option 1: pip install from pypi. 
 
-`pip install yunchang==0.2`
+`pip install yunchang==0.3` (flash_attn >= 2.6.0)
+
+`pip install yunchang==0.2` (flash_attn < 2.6.0)
 
 Option 2: build from local.
 
