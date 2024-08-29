@@ -128,6 +128,7 @@ I am honored that this repository has contributed to the following projects:
 3. [feifeibear/Odysseus-Transformer](https://github.com/feifeibear/Odysseus-Transformer)
 4. [Ascend/AscendSpeed](https://gitee.com/ascend/AscendSpeed/blob/master/docs/features/hybrid-context-parallel.md)
 5. [jzhang38/EasyContext](https://github.com/jzhang38/EasyContext)
+6. [FlagOpen/FlagScale](https://github.com/FlagOpen/FlagScale/commit/f98ee1e293bd906cc77f512f7a884b2030c10a12)
 
 ## Citation
 ```
