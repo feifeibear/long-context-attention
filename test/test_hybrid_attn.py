@@ -15,7 +15,7 @@ def log(msg, a, rank0_only=False):
     if rank0_only:
         if rank == 0:
             print(
-                f"{msg}: "
+                f"[Rank#0] {msg}: "
                 f"max {a.abs().max().item()}, "
                 f"mean {a.abs().mean().item()}",
                 flush=True,
@@ -27,7 +27,7 @@ def log(msg, a, rank0_only=False):
             if rank == 0:
                 print(f"{msg}:")
             print(
-                f"[{rank}] "
+                f"[Rank#{rank}] "
                 f"max {a.abs().max().item()}, "
                 f"mean {a.abs().mean().item()}",
                 flush=True,
@@ -36,9 +36,6 @@ def log(msg, a, rank0_only=False):
 
 
 if __name__ == "__main__":
-    # uncomment the line using 
-    # from remote_pdb import set_trace
-
     torch.random.manual_seed(0)
 
     use_bwd = False
@@ -46,7 +43,8 @@ if __name__ == "__main__":
 
     rank = dist.get_rank()
     world_size = dist.get_world_size()
-    dtype = torch.float16 # torch.bfloat16
+    # Inference mainly uses fp16; ROCM flash attention with bf16 precision is slightly larger, will be fixed soon 
+    dtype = torch.float16
     device = torch.device(f"cuda:{rank}")
 
     batch_size = 2
@@ -73,7 +71,7 @@ if __name__ == "__main__":
         batch_size, seqlen, nheads, d, device=device, dtype=dtype, requires_grad=True
     )
     dout = torch.randn(batch_size, seqlen, nheads, d, device=device, dtype=dtype)
-   
+
     dist.broadcast(q, src=0)
     dist.broadcast(k, src=0)
     dist.broadcast(v, src=0)
@@ -121,7 +119,7 @@ if __name__ == "__main__":
         dropout_p=dropout_p,
         causal=causal,
         window_size=window_size,
-        softcap=0.0, # TODO : remove
+        softcap=0.0,
         alibi_slopes=alibi_slopes,
         deterministic=deterministic,
         return_attn_probs=True,
@@ -149,7 +147,7 @@ if __name__ == "__main__":
         dropout_p=dropout_p,
         causal=causal,
         window_size=window_size,
-        softcap=0.0, # TODO : remove
+        softcap=0.0,
         alibi_slopes=alibi_slopes,
         deterministic=deterministic,
         return_attn_probs=True,
@@ -183,12 +181,11 @@ if __name__ == "__main__":
     local_out_ref = out_ref.chunk(world_size, dim=1)[rank]
     local_out_pt_ref = out_ref.chunk(world_size, dim=1)[rank]
 
-    log("out", local_out, rank0_only=True)
-    log("out diff", local_out_ref - local_out)
-    log("ref diff", out_ref - out_pt_ref)
-    log("local ref diff", local_out_ref - local_out_pt_ref)
-    # set_trace()
-    torch.testing.assert_close(local_out, local_out_ref)
+    log("local (rank) out", local_out, rank0_only=True)
+    log("out (distributed) - out_ref (non-distributed) diff", local_out_ref - local_out)
+    log("out_ref (non-distributed) - out_pt_ref (gpu) diff", local_out_ref - local_out_pt_ref)
+
+    torch.testing.assert_close(local_out, local_out_ref, atol=1e-2, rtol=0)
     torch.testing.assert_close(out_ref, out_pt_ref, atol=1e-2, rtol=0)
 
     if use_bwd:

@@ -1,6 +1,5 @@
 from setuptools import setup, find_packages
 
-
 setup(
     name="yunchang",
     version="0.3",
