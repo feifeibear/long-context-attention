@@ -7,6 +7,7 @@ import torch
 import torch.distributed as dist
 from flash_attn import flash_attn_func
 
+from test_utils import attention_ref
 
 def log(msg, a, rank0_only=False):
     world_size = dist.get_world_size()
@@ -14,7 +15,7 @@ def log(msg, a, rank0_only=False):
     if rank0_only:
         if rank == 0:
             print(
-                f"{msg}: "
+                f"[Rank#0] {msg}: "
                 f"max {a.abs().max().item()}, "
                 f"mean {a.abs().mean().item()}",
                 flush=True,
@@ -26,7 +27,7 @@ def log(msg, a, rank0_only=False):
             if rank == 0:
                 print(f"{msg}:")
             print(
-                f"[{rank}] "
+                f"[Rank#{rank}] "
                 f"max {a.abs().max().item()}, "
                 f"mean {a.abs().mean().item()}",
                 flush=True,
@@ -35,12 +36,15 @@ def log(msg, a, rank0_only=False):
 
 
 if __name__ == "__main__":
+    torch.random.manual_seed(0)
+
     use_bwd = False
     dist.init_process_group("nccl")
 
     rank = dist.get_rank()
     world_size = dist.get_world_size()
-    dtype = torch.bfloat16
+    # Inference mainly uses fp16; ROCM flash attention with bf16 precision is slightly larger, will be fixed soon 
+    dtype = torch.float16
     device = torch.device(f"cuda:{rank}")
 
     batch_size = 2
@@ -103,15 +107,20 @@ if __name__ == "__main__":
         print("# ds-ulysses forward:")
         print("#" * 30)
 
+    # common test parameters
+    window_size=(-1, -1)
+    alibi_slopes, attn_bias = None, None
+    dropout_mask = None
+
     local_out = hybrid_seq_parallel_attn(
         local_q,
         local_k,
         local_v,
         dropout_p=dropout_p,
         causal=causal,
-        window_size=(-1, -1),
+        window_size=window_size,
         softcap=0.0,
-        alibi_slopes=None,
+        alibi_slopes=alibi_slopes,
         deterministic=deterministic,
         return_attn_probs=True,
     )
@@ -137,12 +146,26 @@ if __name__ == "__main__":
         v,
         dropout_p=dropout_p,
         causal=causal,
-        window_size=(-1, -1),
+        window_size=window_size,
         softcap=0.0,
-        alibi_slopes=None,
+        alibi_slopes=alibi_slopes,
         deterministic=deterministic,
         return_attn_probs=True,
     )
+
+    out_pt_ref, attn_pt_ref = attention_ref(
+        q,
+        k,
+        v,
+        None,
+        None,
+        attn_bias,
+        dropout_p,
+        dropout_mask,
+        causal=causal,
+        window_size=window_size,
+    )
+
     if rank == 0:
         print("#" * 30)
         print("# local forward:")
@@ -156,9 +179,14 @@ if __name__ == "__main__":
     # check correctness
 
     local_out_ref = out_ref.chunk(world_size, dim=1)[rank]
+    local_out_pt_ref = out_ref.chunk(world_size, dim=1)[rank]
 
-    log("out", local_out, rank0_only=True)
-    log("out diff", local_out_ref - local_out)
+    log("local (rank) out", local_out, rank0_only=True)
+    log("out (distributed) - out_ref (non-distributed) diff", local_out_ref - local_out)
+    log("out_ref (non-distributed) - out_pt_ref (gpu) diff", local_out_ref - local_out_pt_ref)
+
+    torch.testing.assert_close(local_out, local_out_ref, atol=1e-2, rtol=0)
+    torch.testing.assert_close(out_ref, out_pt_ref, atol=1e-2, rtol=0)
 
     if use_bwd:
         local_dq_ref = q.grad.chunk(world_size, dim=1)[rank]
