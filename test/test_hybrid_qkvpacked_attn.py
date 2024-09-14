@@ -1,8 +1,11 @@
 import torch
 import torch.distributed as dist
-from yunchang import LongContextAttentionQKVPacked, set_seq_parallel_pg
-from yunchang import RING_IMPL_QKVPACKED_DICT
-from yunchang.comm import EXTRACT_FUNC_DICT
+from yunchang import (
+    LongContextAttentionQKVPacked, 
+    set_seq_parallel_pg, 
+    EXTRACT_FUNC_DICT, 
+    RING_IMPL_QKVPACKED_DICT
+)
 from flash_attn import flash_attn_qkvpacked_func
 
 
@@ -37,7 +40,7 @@ def get_local_rank():
     local_rank = int(os.getenv('LOCAL_RANK', '0'))
     return local_rank
 
-def test(ring_impl_type="basic"):
+def test(ring_impl_type="zigzag"):
     ring_fn = RING_IMPL_QKVPACKED_DICT[ring_impl_type]
 
     rank = dist.get_rank()
@@ -169,9 +172,11 @@ def test(ring_impl_type="basic"):
     log("dq diff", local_dqkv - local_dqkv_ref)
 
 
+
 if __name__ == "__main__":
     dist.init_process_group("nccl")
-    # for ring_impl_type in ["strip", "basic", "zigzag"]:
-    for ring_impl_type in ["strip"]:
+    for ring_impl_type in ["strip", "basic", "zigzag"]:
         print(f"ring_impl_type: {ring_impl_type}")
         test(ring_impl_type)
+    if dist.is_initialized():
+        dist.destroy_process_group()

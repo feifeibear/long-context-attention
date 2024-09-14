@@ -12,7 +12,7 @@ The project is built on [zhuzilin/ring-flash-attention](https://github.com/zhuzi
 
 
 
-## What's wrong with Ulysses and Ring?
+## Why not apply Ulysses and Ring Attention Individually?
 
 - Ulysses is sensitive to the number of attention heads. 
 The parallelism degree in Ulysses cannot exceed the number of heads. 
@@ -25,20 +25,29 @@ Even with the communication and computation processes fully overlapped, the tota
 Furthermore, Ring-Attention utilizes asynchronous peer-to-peer communication, which not only has a lower bandwidth utilization compared to collective communication methods but also poses the risk of potential communication deadlocks in large-scale deployments.
 
 
-## LongContextAttention, a.k.a Unified Sequence Parallelism and Hybrid Sequence Parallelism
+## LongContextAttention, also known as Unified Sequence Parallelism and Hybrid Sequence Parallelism
 
 `LongContextAttention` is a **unified sequence parallel** , also known as **hybrid sequence parallel** ,that hybrid DeepSpeed-Ulysses-Attention and Ring-Attention therefore addressing the limitations of both methods.
 
 <p align="center">
-    <img src="./media/hybrid_seqparallel.png">
+    <img src="./media/usp.png">
 </p>
 
+### Usage
+
+Please refer to [test/test_hybrid_qkvpacked_attn.py](./test/test_hybrid_qkvpacked_attn.py) and [test/test_hybrid_attn.py](./test/test_hybrid_attn.py) for usage.
+
+In short, we take the `zigzag` ring attention implementation as an example:
+
+1. apply `set_seq_parallel_pg` to set the process group
+2. extract local tensors with `zigzag_extract_local`. We need reorder the input tokens or input tensors for load balance ring attention.
+3. then apply `LongContextAttention(ring_impl_type="zigzag")` as a drop-in replacement for Attention implementation.
 
 ### Install
 
 Option 1: pip install from pypi. 
 
-`pip install yunchang==0.3` (flash_attn >= 2.6.0)
+`pip install yunchang` (flash_attn >= 2.6.0)
 
 `pip install yunchang==0.2` (flash_attn < 2.6.0)
 
@@ -46,68 +55,7 @@ Option 2: build from local.
 
 `pip install .`
 
-### Install for AMD GPU
-
-Supported GPU : MI300X, MI308X
-
-GPU arch : gfx942
-
-Step 1: prepare docker envrionment
-
-Tow recommended docker container to start with 
-
-- rocm/pytorch:rocm6.2_ubuntu22.04_py3.10_pytorch_release_2.3.0 : hosted in dockerhub, no conda
-- [dockerhub repo](https://github.com/yiakwy-xpu-ml-framework-team/Tools-dockerhub/blob/main/rocm/Dockerfile.rocm62.ubuntu-22.04) : Customerized Dockerfile with conda virtual env and develop kit support
-
-An example to create an docker container :
-
-```bash
-# create docker container
-IMG=rocm/pytorch:rocm6.2_ubuntu22.04_py3.10_pytorch_release_2.3.0
-tag=py310-rocm6.2-distattn-dev
-
-docker_args=$(echo -it --privileged \
- --name $tag \
- --ulimit memlock=-1:-1 --net=host --cap-add=IPC_LOCK \
- --device=/dev/kfd --device=/dev/dri \
- --ipc=host \
- --security-opt seccomp=unconfined \
- --shm-size 16G \
- --group-add video \
- -v $(readlink -f `pwd`):/workspace \
- --workdir /workspace \
- --cpus=$((`nproc` / 2  - 1)) \
- $IMG
-)
-
-docker_args=($docker_args)
-
-docker container create "${docker_args[@]}"
-
-# start it
-docker start -a -i $tag
-```
-
-Update ROCM SDK using this [script](https://github.com/yiakwy-xpu-ml-framework-team/Tools-dockerhub/blob/main/rocm/update_sdk.sh):
-
-```bash
-# e.g.:
-ROCM_VERSION=6.3 bash rocm/update_sdk.sh
-```
-
-Step 2 : build from local.
-
-> MAX_JOBS=$(nproc) pip install .[amd] --verbose
-
-**Features:**
-
-1. No Limitation on the Number of Heads: Our approach does not impose a restriction on the number of heads, providing greater flexibility for various attention mechanisms.
-
-2. Cover the Capability of either Ulysses and Ring: By setting the ulysses_degree to the sequence parallel degree, the system operates identically to Ulysses. Conversely, setting the ulysses_degree to 1 mirrors the functionality of Ring.
-
-3. Enhanced Performance: We achieve superior performance benchmarks over both Ulysses and Ring, offering a more efficient solution for attention mechanism computations.
-
-4. Compatibility with Advanced Parallel Strategies: LongContextAttention is fully compatible with other sophisticated parallelization techniques, including Tensor Parallelism, ZeRO, and Pipeline Parallelism, ensuring seamless integration with the latest advancements in parallel computing.
+Install for AMD GPU: [install_amd.md](./docs/install_amd.md)
 
 ### Verified in Megatron-LM
 The loss curves for Data Parallel (DP) and Unified Sequence Parallel (ulysses=2+ring=2) are closely aligned, as illustrated in the figure. This alignment confirms the accuracy of the unified sequence parallel.
@@ -120,7 +68,6 @@ You should reorder Query tensors with [EXTRACT_FUNC_DICT](./yunchang/comm/extrac
 In the Megatron-LM, you can reorder the input tokens before feed them into the model and apply the same reordering to RoPE parameters. See our paper for detailed instructions.
 
 ## Best Practice for 4D Parallelism
-
 
 We analyze the impact of introducing Sequnce Parallelism to Data/ZeRO/Tensor/Pipeline Parallelism in a technique report, which can be found at [here](https://arxiv.org/abs/2405.07719).
 
@@ -183,7 +130,7 @@ I am honored that this repository has contributed to the following projects:
 6. [FlagOpen/FlagScale](https://github.com/FlagOpen/FlagScale/commit/f98ee1e293bd906cc77f512f7a884b2030c10a12)
 7. [zhiyuanhubj/LongRecipe](https://github.com/zhiyuanhubj/LongRecipe)
 
-## Citation
+## Cite Us
 ```
 @article{fang2024unified,
   title={USP: A Unified Sequence Parallelism Approach for Long Context Generative AI},
