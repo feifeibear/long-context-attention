@@ -49,7 +49,15 @@ ROCM_VERSION=6.3 bash rocm/update_sdk.sh
 
 Step 2 : build from local.
 
-> MAX_JOBS=$(nproc) pip install .[amd] --verbose
+install flash_attn from source
+
+```bash
+pip install flash_attn @ git+https://git@github.com/Dao-AILab/flash-attention.git
+```
+
+then install yunchang
+
+> MAX_JOBS=$(nproc) pip install . -verbose
 
 **Features:**
 
