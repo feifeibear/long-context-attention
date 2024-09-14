@@ -52,7 +52,7 @@ Step 2 : build from local.
 install flash_attn from source
 
 ```bash
-pip install flash_attn @ git+https://git@github.com/Dao-AILab/flash-attention.git
+pip install flash_attn@git+https://git@github.com/Dao-AILab/flash-attention.git
 ```
 
 then install yunchang
