@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "yunchang"
-version = "0.3.1"
+version = "0.3.2"
 authors = [
   { name="Jiarui Fang", email="fangjiarui123@gmail.com" },
 ]
@@ -24,5 +24,5 @@ dependencies = [
 "Homepage" = "https://github.com/feifeibear/long-context-attention"
 "Bug Tracker" = "https://github.com/feifeibear/long-context-attention/issues"
 
-[tool.setuptools.packages.find]
-exclude = ["test", "benchmark", "patches", "media", "docs"]
+[tool.setuptools]
+packages = ["yunchang"]
