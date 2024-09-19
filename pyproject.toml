@@ -25,4 +25,4 @@ dependencies = [
 "Bug Tracker" = "https://github.com/feifeibear/long-context-attention/issues"
 
 [tool.setuptools]
-packages = ["yunchang"]
+packages = ["yunchang", "yunchang.*"]
