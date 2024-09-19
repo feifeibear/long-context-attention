@@ -1,4 +1,4 @@
-# Long-Context-Attention (YunChang-云长): A Unified Sequence Parallel (USP) Attention for Long Context LLM Model Training and Inference
+#  YunChang: A Unified Sequence Parallel (USP) Attention for Long Context LLM Model Training and Inference.
 
 [\[Tech Report\] USP: A Unified Sequence Parallelism Approach for Long Context Generative AI](https://arxiv.org/abs/2405.07719)
 
