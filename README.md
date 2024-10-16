@@ -65,8 +65,11 @@ The loss curves for Data Parallel (DP) and Unified Sequence Parallel (ulysses=2+
     <img src="./media/loss.png">
 </p>
 
-You should reorder Query tensors with [EXTRACT_FUNC_DICT](./yunchang/comm/extract_local.py) when using load-balance Ring Attention when applying the causal mask.
-In the Megatron-LM, you can reorder the input tokens before feed them into the model and apply the same reordering to RoPE parameters. See our paper for detailed instructions.
+When utilizing load-balance Ring Attention with a causal mask, it is essential to reorder the Query tensors using the [EXTRACT_FUNC_DICT](./yunchang/comm/extract_local.py) function.
+
+In Megatron-LM, you can reorder the input tokens before feeding them into the model and apply the same reordering to the RoPE parameters. For detailed instructions, please refer to our paper.
+
+For an example implementation, you can check out this [PR](https://github.com/FlagOpen/FlagScale/commit/f98ee1e293bd906cc77f512f7a884b2030c10a12), which integrates USP into a BAAI's Megatron-LM framework.
 
 ## Best Practice for 4D Parallelism
 
