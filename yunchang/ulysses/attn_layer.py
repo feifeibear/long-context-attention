@@ -12,7 +12,11 @@ import torch.distributed as dist
 from flash_attn import flash_attn_func
 from yunchang.comm.all_to_all import SeqAllToAll4D
 import torch.nn.functional as F
-from sageattention.core import sageattn
+
+try:
+    from sageattention.core import sageattn
+except ImportError:
+    sageattn = None
 
 from yunchang.kernels.int8_flash_attention.flash_atten_fp import attention
 from yunchang.kernels.int8_flash_attention.flash_atten_int8 import attention_int8
@@ -79,6 +83,8 @@ def int8_attn_wrapper(query, key, value, dropout_p=0.0, softmax_scale=None, caus
 def sageattn_wrapper(query, key, value, dropout_p=0.0, softmax_scale=None, causal=False, 
                      window_size=(-1, -1), softcap=0.0, alibi_slopes=None, deterministic=False, 
                      return_attn_probs=False):
+    if sageattn is None:
+        raise ImportError("sageattn is not installed. Please install it from https://github.com/thu-ml/SageAttention.")
     # Convert window_size to attn_mask if needed
     attn_mask = None
     if window_size != (-1, -1):
