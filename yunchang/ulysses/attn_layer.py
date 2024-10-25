@@ -12,6 +12,7 @@ import torch.distributed as dist
 from flash_attn import flash_attn_func
 from yunchang.comm.all_to_all import SeqAllToAll4D
 import torch.nn.functional as F
+from sageattention.core import sageattn
 
 def torch_attn(query,
             key,
@@ -39,6 +40,20 @@ def torch_attn(query,
     hidden_states = hidden_states.to(query.dtype)
     return hidden_states
 
+
+def sageattn_wrapper(query, key, value, dropout_p=0.0, softmax_scale=None, causal=False, 
+                     window_size=(-1, -1), softcap=0.0, alibi_slopes=None, deterministic=False, 
+                     return_attn_probs=False):
+    # Convert window_size to attn_mask if needed
+    attn_mask = None
+    if window_size != (-1, -1):
+        # Implement window_size to attn_mask conversion here
+        return NotImplementedError("window_size is not supported for SageAttention")
+
+    return sageattn(query, key, value, attn_mask=attn_mask, dropout_p=dropout_p, 
+                    is_causal=causal, scale=softmax_scale)
+
+
 class UlyssesAttention(torch.nn.Module):
     """Initialization.
 
@@ -54,7 +69,8 @@ class UlyssesAttention(torch.nn.Module):
         sequence_process_group: dist.ProcessGroup = None,
         scatter_idx: int = 2,
         gather_idx: int = 1,
-        use_fa : bool = True 
+        use_fa : bool = True,
+        use_sage : bool = False,
     ) -> None:
 
         super(UlyssesAttention, self).__init__()
@@ -62,6 +78,7 @@ class UlyssesAttention(torch.nn.Module):
         self.scatter_idx = scatter_idx
         self.gather_idx = gather_idx
         self.use_fa = use_fa
+        self.use_sage = use_sage
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         gpu_name = torch.cuda.get_device_name(device)
         if "Turing" in gpu_name or "Tesla" in gpu_name or "T4" in gpu_name:
@@ -103,11 +120,14 @@ class UlyssesAttention(torch.nn.Module):
         k = SeqAllToAll4D.apply(self.spg, key, self.scatter_idx, self.gather_idx)
         v = SeqAllToAll4D.apply(self.spg, value, self.scatter_idx, self.gather_idx)
 
-        if self.use_fa:
+
+        if self.use_sage:
+            fn = sageattn_wrapper
+        elif self.use_fa:
             fn = flash_attn_func
         else:
             fn = torch_attn
-            
+        
         context_layer = fn(
             q,
             k,
