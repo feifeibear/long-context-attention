@@ -1,0 +1,6 @@
+/__pycache__
+run.sh
+*.csv
+*.png
+*.html
+test.py

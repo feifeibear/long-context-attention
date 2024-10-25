@@ -14,9 +14,9 @@ from yunchang.comm.all_to_all import SeqAllToAll4D
 import torch.nn.functional as F
 from sageattention.core import sageattn
 
-from flash_atten_fp import attention
-from flash_atten_int8 import attention_int8
-from flash_atten_full_int8 import attention_full_int8
+from yunchang.kernels.int8_flash_attention.flash_atten_fp import attention
+from yunchang.kernels.int8_flash_attention.flash_atten_int8 import attention_int8
+from yunchang.kernels.int8_flash_attention.flash_atten_full_int8 import attention_full_int8
 
 
 def torch_attn(query,
