@@ -14,6 +14,11 @@ from yunchang.comm.all_to_all import SeqAllToAll4D
 import torch.nn.functional as F
 from sageattention.core import sageattn
 
+from flash_atten_fp import attention
+from flash_atten_int8 import attention_int8
+from flash_atten_full_int8 import attention_full_int8
+
+
 def torch_attn(query,
             key,
             value,
@@ -39,6 +44,36 @@ def torch_attn(query,
     )
     hidden_states = hidden_states.to(query.dtype)
     return hidden_states
+
+
+def quant_pertoken(X):
+    X_max, _ = torch.abs(X).max(dim=-1)
+    X_scale = X_max / 127
+    ret = torch.round(X / X_scale[:, :, :, None]).to(torch.int8)
+    return ret, X_scale
+
+def quant_pertensor(X):
+    X_max, _ = torch.abs(X).max(dim=-1)
+    X_max, _ = torch.max(X_max, dim=-1)
+    X_scale = X_max / 127
+    ret = torch.round(X / X_scale[:, :, None, None]).to(torch.int8)
+    return ret, X_scale
+
+def int8_attn_wrapper(query, key, value, dropout_p=0.0, softmax_scale=None, causal=False, 
+                     window_size=(-1, -1), softcap=0.0, alibi_slopes=None, deterministic=False, 
+                     return_attn_probs=False):
+    
+    q8, qs8 = quant_pertoken(query)
+    k8, ks8 = quant_pertoken(key)
+    v8, vs8 = quant_pertensor(value)
+    sm_scale = 1
+    if causal:
+        int8_out = attention_int8(q8, k8, v, qs8, ks8, causal, sm_scale)
+        return int8_out
+    else:
+        print(q8.device, k8.device, v8.device, qs8.device, ks8.device, vs8.device)
+        full_int8_out = attention_full_int8(q8, k8, v8, qs8, ks8, vs8, causal, sm_scale)
+        return full_int8_out
 
 
 def sageattn_wrapper(query, key, value, dropout_p=0.0, softmax_scale=None, causal=False, 
@@ -69,20 +104,18 @@ class UlyssesAttention(torch.nn.Module):
         sequence_process_group: dist.ProcessGroup = None,
         scatter_idx: int = 2,
         gather_idx: int = 1,
-        use_fa : bool = True,
-        use_sage : bool = False,
+        attn_type: str = "flash",
     ) -> None:
 
         super(UlyssesAttention, self).__init__()
         self.spg = sequence_process_group
         self.scatter_idx = scatter_idx
         self.gather_idx = gather_idx
-        self.use_fa = use_fa
-        self.use_sage = use_sage
+        self.attn_type = attn_type
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         gpu_name = torch.cuda.get_device_name(device)
         if "Turing" in gpu_name or "Tesla" in gpu_name or "T4" in gpu_name:
-            self.use_fa = False
+            self.attn_type = "torch"
 
     def forward(
         self,
@@ -121,9 +154,11 @@ class UlyssesAttention(torch.nn.Module):
         v = SeqAllToAll4D.apply(self.spg, value, self.scatter_idx, self.gather_idx)
 
 
-        if self.use_sage:
+        if self.attn_type == "sage":
             fn = sageattn_wrapper
-        elif self.use_fa:
+        elif self.attn_type == "int8":
+            fn = int8_attn_wrapper
+        elif self.attn_type == "flash":
             fn = flash_attn_func
         else:
             fn = torch_attn

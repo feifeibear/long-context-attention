@@ -1,10 +1,11 @@
 import torch
 import torch.distributed as dist
 from yunchang import UlyssesAttention
+import argparse
 
 from flash_attn import flash_attn_func
 import torch.cuda
-
+import os
 
 def log(msg, a, rank0_only=False):
     world_size = dist.get_world_size()
@@ -33,6 +34,11 @@ def log(msg, a, rank0_only=False):
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Test UlyssesAttention")
+    parser.add_argument('--attn_type', type=str, default='flash', choices=['sage', 'flash', 'int8', 'torch'], help='Attention type (e.g., sage, flash)')
+    parser.add_argument('--mode', type=str, default='fwd-bwd', choices=['fwd-only', 'fwd-bwd'], help='Execution mode')
+    args = parser.parse_args()
+
     dist.init_process_group("nccl")
 
     rank = dist.get_rank()
@@ -87,21 +93,21 @@ if __name__ == "__main__":
     local_v = local_v.to(device).contiguous()
     local_dout = local_dout.to(device).contiguous()
 
+    # necessary for triton.
+    current_cuda_device = int(os.environ['LOCAL_RANK'])
+    torch.cuda.set_device(current_cuda_device)
+
     # prcess_group == sequence_process_group
     sp_pg = None #dist.new_group(ranks=[i for i in range(world_size)])
 
-    dist_attn = UlyssesAttention(sp_pg, use_fa=True, use_sage=True)
-
-    # Add mode parameter
-    mode = 'fwd-only'
-    # mode = 'fwd-bwd'
+    dist_attn = UlyssesAttention(sp_pg, attn_type=args.attn_type)
 
     if rank == 0:
         print("#" * 30)
-        print(f"# ds-ulysses {mode}:")
+        print(f"# ds-ulysses {args.mode}:")
         print("#" * 30)
 
-    if mode == 'fwd-only':
+    if args.mode == 'fwd-only':
         with torch.no_grad():
             local_out = dist_attn(
                 local_q,
@@ -140,7 +146,7 @@ if __name__ == "__main__":
 
     if rank == 0:
         print("#" * 30)
-        print(f"# local {mode}:")
+        print(f"# local {args.mode}:")
         print("#" * 30)
 
     # Ensure reference tensors are on the correct device
@@ -150,7 +156,7 @@ if __name__ == "__main__":
     dout = dout.to(device)
 
     # reference, a local flash attn
-    if mode == 'fwd-only':
+    if args.mode == 'fwd-only':
         with torch.no_grad():
             out_ref, _, _ = flash_attn_func(
                 q,
@@ -187,7 +193,7 @@ if __name__ == "__main__":
     log("out", local_out, rank0_only=True)
     log("out diff", local_out_ref - local_out)
 
-    if mode != 'fwd-only':
+    if args.mode != 'fwd-only':
         local_dq_ref = q.grad.chunk(world_size, dim=1)[rank]
         log("load_dq", local_q.grad)
         log("dq diff", local_dq_ref - local_q.grad)
