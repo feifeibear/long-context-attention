@@ -56,7 +56,8 @@ if __name__ == "__main__":
 
     assert seqlen % world_size == 0
     assert d % 8 == 0
-    # assert batch_size == 1
+    if args.attn_type in ["int8", "sage"]:
+        assert args.mode == "fwd-only", f"int8 and sage only attention support fwd-only mode"
 
     q = torch.randn(
         batch_size, seqlen, nheads, d, device=device, dtype=dtype, requires_grad=True
