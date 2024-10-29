@@ -4,7 +4,7 @@ import torch
 import triton
 import triton.language as tl
 
-from configs import *
+from yunchang.kernels.int8_flash_attention.configs import *
 
 @triton.jit
 def _attn_fwd_inner_full_int8(acc, l_i, m_i, q,  #

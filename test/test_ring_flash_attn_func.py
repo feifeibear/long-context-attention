@@ -36,15 +36,20 @@ if __name__ == "__main__":
     dist.init_process_group("nccl")
     rank = dist.get_rank()
     world_size = dist.get_world_size()
-    dtype = torch.bfloat16
+    dtype = torch.float16
     device = torch.device(f"cuda:{rank}")
+
+    current_cuda_device = int(os.environ['LOCAL_RANK'])
+    torch.cuda.set_device(current_cuda_device)
+
+    fwd_only = True
 
     batch_size = 1
     seqlen = 3816
-    nheads = 5
-    d = 128
+    nheads = 8
+    d = 64
     dropout_p = 0
-    causal = True
+    causal = False
     deterministic = False
 
     assert seqlen % world_size == 0
@@ -93,6 +98,7 @@ if __name__ == "__main__":
         alibi_slopes=None,
         deterministic=deterministic,
         return_attn_probs=True,
+        use_sage=True,
     )
 
     log("out", out, rank0_only=True)
@@ -100,24 +106,25 @@ if __name__ == "__main__":
     log("out diff", local_out - ring_out)
     log("lse diff", local_lse - ring_lse)
 
-    dist.barrier()
-    if rank == 0:
-        print("#" * 30)
-        print("# backward:")
-        print("#" * 30)
+    if not fwd_only:
+        dist.barrier()
+        if rank == 0:
+            print("#" * 30)
+            print("# backward:")
+            print("#" * 30)
 
-    out.backward(dout)
-    dqkv = qkv.grad
-    local_dqkv = dqkv.chunk(world_size, dim=1)[rank]
+        out.backward(dout)
+        dqkv = qkv.grad
+        local_dqkv = dqkv.chunk(world_size, dim=1)[rank]
 
-    ring_out.backward(local_dout)
-    ring_dqkv = local_qkv.grad
+        ring_out.backward(local_dout)
+        ring_dqkv = local_qkv.grad
 
-    log("load_dq", local_dqkv[:, :, 0, :])
-    log("dq diff", local_dqkv[:, :, 0, :] - ring_dqkv[:, :, 0, :])
+        log("load_dq", local_dqkv[:, :, 0, :])
+        log("dq diff", local_dqkv[:, :, 0, :] - ring_dqkv[:, :, 0, :])
 
-    log("load_dk", local_dqkv[:, :, 1, :])
-    log("dk diff", local_dqkv[:, :, 1, :] - ring_dqkv[:, :, 1, :])
+        log("load_dk", local_dqkv[:, :, 1, :])
+        log("dk diff", local_dqkv[:, :, 1, :] - ring_dqkv[:, :, 1, :])
 
-    log("load_dv", local_dqkv[:, :, 2, :])
-    log("dv diff", local_dqkv[:, :, 2, :] - ring_dqkv[:, :, 2, :])
+        log("load_dv", local_dqkv[:, :, 2, :])
+        log("dv diff", local_dqkv[:, :, 2, :] - ring_dqkv[:, :, 2, :])

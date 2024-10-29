@@ -91,8 +91,12 @@ def sageattn_wrapper(query, key, value, dropout_p=0.0, softmax_scale=None, causa
         # Implement window_size to attn_mask conversion here
         return NotImplementedError("window_size is not supported for SageAttention")
 
-    return sageattn(query, key, value, attn_mask=attn_mask, dropout_p=dropout_p, 
+    query = query.transpose(1, 2)
+    key = key.transpose(1, 2)
+    value = value.transpose(1, 2)
+    output = sageattn(query, key, value, attn_mask=attn_mask, dropout_p=dropout_p, 
                     is_causal=causal, scale=softmax_scale)
+    return output.transpose(1, 2)
 
 
 class UlyssesAttention(torch.nn.Module):

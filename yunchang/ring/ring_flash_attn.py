@@ -2,7 +2,7 @@ import torch
 import torch.distributed as dist
 from flash_attn.flash_attn_interface import _flash_attn_forward, _flash_attn_backward
 from .utils import RingComm, update_out_and_lse
-
+from sageattention.core import sageattn
 
 def ring_flash_attn_forward(
     process_group,
@@ -16,6 +16,7 @@ def ring_flash_attn_forward(
     softcap=0.0,
     alibi_slopes=None,
     deterministic=False,
+    use_sage=False,
 ):
     comm = RingComm(process_group)
 
@@ -31,27 +32,46 @@ def ring_flash_attn_forward(
             comm.commit()
 
         if not causal or step <= comm.rank:
-            block_out, _, _, _, _, block_lse, _, _ = _flash_attn_forward(
-                q,
-                k,
-                v,
-                dropout_p,
-                softmax_scale,
-                causal=causal and step == 0,
-                window_size=window_size,
-                softcap=softcap,
-                alibi_slopes=alibi_slopes,
-                return_softmax=True and dropout_p > 0,
-            )
+            if not use_sage:
+                block_out, _, _, _, _, block_lse, _, _ = _flash_attn_forward(
+                    q,
+                    k,
+                    v,
+                    dropout_p,
+                    softmax_scale,
+                    causal=causal and step == 0,
+                    window_size=window_size,
+                    softcap=softcap,
+                    alibi_slopes=alibi_slopes,
+                    return_softmax=True and dropout_p > 0,
+                )
+            else:
+                q_new = q.transpose(1, 2)
+                k_new = k.transpose(1, 2)
+                v_new = v.transpose(1, 2)
+                print(f"q: {q.shape}, k: {k.shape}, v: {v.shape}")
+                block_out, block_lse = sageattn(
+                    q_new,
+                    k_new,
+                    v_new,
+                    is_causal=causal and step == 0,
+                    ret_lse=True,
+                )
+                # block_out = block_out.transpose(1, 2)
+                block_lse = block_lse.transpose(1, 2)
+                
             out, lse = update_out_and_lse(out, lse, block_out, block_lse)
-
         if step + 1 != comm.world_size:
             comm.wait()
             k = next_k
             v = next_v
 
     out = out.to(q.dtype)
+
     lse = lse.squeeze(dim=-1).transpose(1, 2)
+    if use_sage:
+        out = out.transpose(1, 2)
+        lse = lse.transpose(1, 2)
     return out, lse
 
 
@@ -154,6 +174,7 @@ class RingFlashAttnFunc(torch.autograd.Function):
         deterministic,
         return_softmax,
         group,
+        use_sage,
     ):
         if softmax_scale is None:
             softmax_scale = q.shape[-1] ** (-0.5)
@@ -173,6 +194,7 @@ class RingFlashAttnFunc(torch.autograd.Function):
             softcap=softcap,
             alibi_slopes=alibi_slopes,
             deterministic=False,
+            use_sage=use_sage,
         )
         # this should be out_padded
         ctx.save_for_backward(q, k, v, out, softmax_lse)
@@ -219,6 +241,7 @@ def ring_flash_attn_qkvpacked_func(
     deterministic=False,
     return_attn_probs=False,
     group=None,
+    use_sage=False,
 ):
     return RingFlashAttnFunc.apply(
         qkv[:, :, 0],
@@ -233,6 +256,7 @@ def ring_flash_attn_qkvpacked_func(
         deterministic,
         return_attn_probs,
         group,
+        use_sage,
     )
 
 

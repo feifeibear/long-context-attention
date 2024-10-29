@@ -46,7 +46,7 @@ if __name__ == "__main__":
     dtype = torch.bfloat16
     device = torch.device(f"cuda:{rank}")
 
-    batch_size = 2
+    batch_size = 1
     seqlen = 3816
     nheads = 8
     d = 64
