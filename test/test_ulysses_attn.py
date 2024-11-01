@@ -37,17 +37,18 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Test UlyssesAttention")
     parser.add_argument('--attn_type', type=str, default='flash', choices=['sage', 'fa', 'int8', 'torch'], help='Attention type (e.g., sage, flash)')
     parser.add_argument('--mode', type=str, default='fwd-bwd', choices=['fwd-only', 'fwd-bwd'], help='Execution mode')
+    parser.add_argument('--seqlen', type=int, default=1024, help='Sequence length')
     args = parser.parse_args()
 
     dist.init_process_group("nccl")
 
     rank = dist.get_rank()
     world_size = dist.get_world_size()
-    dtype = torch.bfloat16
+    dtype = torch.float16
     device = torch.device(f"cuda:{rank}")
 
     batch_size = 1
-    seqlen = 3816
+    seqlen = args.seqlen
     nheads = 8
     d = 64
     dropout_p = 0
@@ -56,7 +57,7 @@ if __name__ == "__main__":
 
     assert seqlen % world_size == 0
     assert d % 8 == 0
-    if args.attn_type in ["int8", "sage"]:
+    if args.attn_type in ["int8", "sage", "fa", "torch"]:
         assert args.mode == "fwd-only", f"int8 and sage only attention support fwd-only mode"
 
     q = torch.randn(
@@ -80,11 +81,15 @@ if __name__ == "__main__":
         raise RuntimeError("CUDA is not available. This test requires GPU.")
 
     local_q = q.chunk(world_size, dim=1)[rank].detach().clone()
-    local_q.requires_grad = True
+
     local_k = k.chunk(world_size, dim=1)[rank].detach().clone()
-    local_k.requires_grad = True
+
     local_v = v.chunk(world_size, dim=1)[rank].detach().clone()
-    local_v.requires_grad = True
+
+    if not args.mode == 'fwd-only':
+        local_q.requires_grad = True
+        local_k.requires_grad = True
+        local_v.requires_grad = True
 
     local_dout = dout.chunk(world_size, dim=1)[rank].detach().clone()
 
@@ -206,3 +211,55 @@ if __name__ == "__main__":
         local_dv_ref = v.grad.chunk(world_size, dim=1)[rank]
         log("load_dk", local_v.grad)
         log("dv diff", local_dv_ref - local_v.grad)
+
+    # Warmup
+    if rank == 0:
+        print("Warming up...")
+    
+    _ = dist_attn(
+        local_q,
+        local_k,
+        local_v,
+        dropout_p=dropout_p,
+        causal=causal,
+        window_size=(-1, -1),
+        softcap=0.0,
+        alibi_slopes=None,
+        deterministic=deterministic,
+        return_attn_probs=True,
+    )
+    
+    # Timing runs
+    if rank == 0:
+        print("\nTiming 5 runs...")
+    
+    times = []
+    for i in range(5):
+        torch.cuda.synchronize()
+        start = torch.cuda.Event(enable_timing=True)
+        end = torch.cuda.Event(enable_timing=True)
+        
+        start.record()
+        local_out = dist_attn(
+            local_q,
+            local_k,
+            local_v,
+            dropout_p=dropout_p,
+            causal=causal,
+            window_size=(-1, -1),
+            softcap=0.0,
+            alibi_slopes=None,
+            deterministic=deterministic,
+            return_attn_probs=True,
+        )
+        end.record()
+        
+        torch.cuda.synchronize()
+        times.append(start.elapsed_time(end))
+        
+        if rank == 0:
+            print(f"Run {i+1}: {times[-1]:.2f} ms")
+    
+    if rank == 0:
+        avg_time = sum(times) / len(times)
+        print(f"\n{args.attn_type}: Average time over {len(times)} runs: {avg_time:.2f} ms")
