@@ -171,7 +171,7 @@ def all_to_all_5D(
         # (P, seq_len/P, 3, bs, hc/P, hs) scatter seqlen -all2all-> (P, seq_len/P, 3, bs, hc/P, hs) scatter head
         if seq_world_size > 1:
             dist.all_to_all_single(output, input_t, group=group)
-            # torch.cuda.synchronize()
+            torch.cuda.synchronize()
         else:
             output = input_t
 
@@ -204,7 +204,7 @@ def all_to_all_5D(
         # (P, bs x hc/P, seqlen/P, hs) scatter seqlen -all2all-> (P, bs x seq_len/P, hc/P, hs) scatter head
         if seq_world_size > 1:
             dist.all_to_all_single(output, input_t, group=group)
-            # torch.cuda.synchronize()
+            torch.cuda.synchronize()
         else:
             output = input_t
 
