@@ -13,7 +13,7 @@ import torch.distributed as dist
 
 
 def all_to_all_4D(
-    input: torch.tensor, scatter_idx: int = 2, gather_idx: int = 1, group=None
+    input: torch.tensor, scatter_idx: int = 2, gather_idx: int = 1, group=None, use_sync: bool = False
 ) -> torch.tensor:
     """
     all-to-all for QKV
@@ -23,6 +23,7 @@ def all_to_all_4D(
         scatter_idx (int): default 1
         gather_idx (int): default 2
         group : torch process group
+        use_sync (bool): whether to synchronize after all-to-all
 
     Returns:
         torch.tensor: resharded tensor (bs, seqlen/P, hc, hs)
@@ -50,9 +51,11 @@ def all_to_all_4D(
         output = torch.empty_like(input_t)
         # https://pytorch.org/docs/stable/distributed.html#torch.distributed.all_to_all_single
         # (P, seq_len/P, bs, hc/P, hs) scatter seqlen -all2all-> (P, seq_len/P, bs, hc/P, hs) scatter head
+
         if seq_world_size > 1:
             dist.all_to_all_single(output, input_t, group=group)
-            torch.cuda.synchronize()
+            if use_sync:
+                torch.cuda.synchronize()
         else:
             output = input_t
         # if scattering the seq-dim, transpose the heads back to the original dimension
@@ -85,7 +88,8 @@ def all_to_all_4D(
         # (P, bs x hc/P, seqlen/P, hs) scatter seqlen -all2all-> (P, bs x seq_len/P, hc/P, hs) scatter head
         if seq_world_size > 1:
             dist.all_to_all_single(output, input_t, group=group)
-            torch.cuda.synchronize()
+            if use_sync:
+                torch.cuda.synchronize()
         else:
             output = input_t
 
@@ -129,7 +133,7 @@ class SeqAllToAll4D(torch.autograd.Function):
 
 
 def all_to_all_5D(
-    input: torch.tensor, scatter_idx: int = 3, gather_idx: int = 1, group=None
+    input: torch.tensor, scatter_idx: int = 3, gather_idx: int = 1, group=None, use_sync: bool = False
 ) -> torch.tensor:
     """
     all-to-all for QKV
@@ -140,6 +144,7 @@ def all_to_all_5D(
         scatter_idx (int): default 1
         gather_idx (int): default 2
         group : torch process group
+        use_sync: whether to synchronize after all-to-all
 
     Returns:
         torch.tensor: resharded tensor (bs, seqlen/P, 3, hc, hs)
@@ -171,7 +176,8 @@ def all_to_all_5D(
         # (P, seq_len/P, 3, bs, hc/P, hs) scatter seqlen -all2all-> (P, seq_len/P, 3, bs, hc/P, hs) scatter head
         if seq_world_size > 1:
             dist.all_to_all_single(output, input_t, group=group)
-            # torch.cuda.synchronize()
+            if use_sync:
+                torch.cuda.synchronize()
         else:
             output = input_t
 
@@ -204,7 +210,8 @@ def all_to_all_5D(
         # (P, bs x hc/P, seqlen/P, hs) scatter seqlen -all2all-> (P, bs x seq_len/P, hc/P, hs) scatter head
         if seq_world_size > 1:
             dist.all_to_all_single(output, input_t, group=group)
-            # torch.cuda.synchronize()
+            if use_sync:
+                torch.cuda.synchronize()
         else:
             output = input_t
 
