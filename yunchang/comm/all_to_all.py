@@ -177,7 +177,7 @@ def all_to_all_5D(
         if seq_world_size > 1:
             dist.all_to_all_single(output, input_t, group=group)
             if use_sync:
-            torch.cuda.synchronize()
+                torch.cuda.synchronize()
         else:
             output = input_t
 
