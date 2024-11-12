@@ -12,7 +12,11 @@ import torch.distributed as dist
 from flash_attn import flash_attn_func
 from yunchang.comm.all_to_all import SeqAllToAll4D
 import torch.nn.functional as F
-
+try:
+    from chitu.interface import _sage_attn_forward, _int8_flash_attn_forward
+except:
+    _sage_attn_forward = None
+    _int8_flash_attn_forward = None
 def torch_attn(query,
             key,
             value,
@@ -54,18 +58,20 @@ class UlyssesAttention(torch.nn.Module):
         sequence_process_group: dist.ProcessGroup = None,
         scatter_idx: int = 2,
         gather_idx: int = 1,
-        use_fa : bool = True 
+        attn_impl: str = "fa", #["fa", "torch", "sage", "int8"]
     ) -> None:
 
         super(UlyssesAttention, self).__init__()
         self.spg = sequence_process_group
         self.scatter_idx = scatter_idx
         self.gather_idx = gather_idx
-        self.use_fa = use_fa
+        
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         gpu_name = torch.cuda.get_device_name(device)
         if "Turing" in gpu_name or "Tesla" in gpu_name or "T4" in gpu_name:
-            self.use_fa = False
+            self.attn_impl = "torch"
+
+        self.attn_impl = attn_impl
 
     def forward(
         self,
@@ -103,10 +109,18 @@ class UlyssesAttention(torch.nn.Module):
         k = SeqAllToAll4D.apply(self.spg, key, self.scatter_idx, self.gather_idx)
         v = SeqAllToAll4D.apply(self.spg, value, self.scatter_idx, self.gather_idx)
 
-        if self.use_fa:
+        if self.attn_impl == "fa":
             fn = flash_attn_func
-        else:
+        elif self.attn_impl == "torch":
             fn = torch_attn
+        elif self.attn_impl == "sage":
+            assert _sage_attn_forward is not None, "sage attn is not available"
+            fn = _sage_attn_forward
+        elif self.attn_impl == "int8":
+            assert _int8_flash_attn_forward is not None, "int8 attn is not available"
+            fn = _int8_flash_attn_forward
+        else:
+            raise ValueError(f"Unknown attn_impl: {self.attn_impl}")
             
         context_layer = fn(
             q,
