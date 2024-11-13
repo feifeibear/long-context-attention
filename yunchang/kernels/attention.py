@@ -5,9 +5,9 @@ except ImportError:
     HAS_FLASH_ATTN = False
 
 try:
-    from hopper.flash_attn_interface import _flash_attn_forward as flash_attn_forward_hopper
-    from hopper.flash_attn_interface import _flash_attn_backward as flash_attn_func_hopper_backward
-    from hopper.flash_attn_interface import flash_attn_func as flash3_attn_func
+    from flash_attn_interface import _flash_attn_forward as flash_attn_forward_hopper
+    from flash_attn_interface import _flash_attn_backward as flash_attn_func_hopper_backward
+    from flash_attn_interface import flash_attn_func as flash3_attn_func
     HAS_FLASH_ATTN_HOPPER = True
 except ImportError:
     HAS_FLASH_ATTN_HOPPER = False
@@ -17,10 +17,7 @@ import torch.nn.functional as F
 def torch_attn(q, k, v, dropout_p = 0.0, 
             softmax_scale = None, 
             causal=False, 
-            window_size=(-1, -1), 
-            softcap=None, 
-            alibi_slopes=None, 
-            return_softmax=False):
+            *args, **kwargs):
     batch_size, seq_len, hs, hd = q.size()
     query = q.view(batch_size, -1, hs, hd).transpose(1, 2)
     key = k.view(batch_size, -1, hs, hd).transpose(1, 2)

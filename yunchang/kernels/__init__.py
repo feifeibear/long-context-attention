@@ -30,16 +30,19 @@ def select_flash_attn_impl(impl_type: FlashAttentionImpl, stage : str = "fwd-bwd
         elif stage == "bwd-only":
             return flash_attn3_func_backward
         elif stage == "fwd-bwd":
-            # flash3_attn_func only supports these args:
-            # (q, k, v, softmax_scale=None, causal=False)
-            def fn(q, k, v, dropout_p = 0.0, 
-                softmax_scale = None, 
-                causal=False, 
-                window_size=(-1, -1), 
-                softcap=None, 
-                alibi_slopes=None, 
-                return_softmax=False):
-                return flash3_attn_func(q, k, v, softmax_scale, causal)
+            def fn(q,
+                k,
+                v,
+                dropout_p=0.0,
+                softmax_scale=None,
+                causal=False,
+                *args, **kwargs
+            ):
+                # (q, k, v, softmax_scale=None, causal=False, window_size=(-1, -1),
+                # deterministic=False, descale_q=None, descale_k=None, descale_v=None, gqa_parallel=False)
+                assert softmax_scale is not None, f"softmax_scale is required for FA3"
+                assert dropout_p == 0.0, f"dropout_p: {dropout_p} is not supported for FA3"
+                return flash3_attn_func(q, k, v, softmax_scale=softmax_scale, causal=causal)
         
             return fn
 

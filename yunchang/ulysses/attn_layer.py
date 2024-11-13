@@ -9,7 +9,6 @@ from typing import Any
 from torch import Tensor
 from yunchang.kernels import FlashAttentionImpl, select_flash_attn_impl
 import torch.distributed as dist
-from flash_attn import flash_attn_func
 from yunchang.comm.all_to_all import SeqAllToAll4D
 import torch.nn.functional as F
 
@@ -83,16 +82,16 @@ class UlyssesAttention(torch.nn.Module):
         v = SeqAllToAll4D.apply(self.spg, value, self.scatter_idx, self.gather_idx)
 
         fn = select_flash_attn_impl(self.attn_type, stage="fwd-bwd")
-        # from flash_attn import flash_attn_func
-        # fn = flash_attn_func
-        # print(f"fn: {fn}")
-        # fn: <function flash_attn_func at 0x7f8950679fc0>
-        # fn: <function flash_attn_func at 0x7fc4d6e796c0>
+
+        if softmax_scale is None:
+            softmax_scale = q.shape[-1] ** -0.5
+            
         context_layer = fn(
             q,
             k,
             v,
             dropout_p=dropout_p,
+            softmax_scale = softmax_scale,
             causal=causal,
             window_size=window_size,
             softcap=softcap,
