@@ -36,7 +36,7 @@ if __name__ == "__main__":
 
     rank = dist.get_rank()
     world_size = dist.get_world_size()
-    dtype = torch.float16
+    dtype = torch.bfloat16
     device = torch.device(f"cuda:{rank}")
 
     batch_size = 2
