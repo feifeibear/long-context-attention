@@ -112,21 +112,23 @@ class SeqAllToAll4D(torch.autograd.Function):
         input: Tensor,
         scatter_idx: int,
         gather_idx: int,
+        use_sync: bool = False,
     ) -> Tensor:
 
         ctx.group = group
         ctx.scatter_idx = scatter_idx
         ctx.gather_idx = gather_idx
-
-        return all_to_all_4D(input, scatter_idx, gather_idx, group=group)
+        ctx.use_sync = use_sync
+        return all_to_all_4D(input, scatter_idx, gather_idx, group=group, use_sync=use_sync)
 
     @staticmethod
     def backward(ctx: Any, *grad_output: Tensor) -> Tuple[None, Tensor, None, None]:
         return (
             None,
             SeqAllToAll4D.apply(
-                ctx.group, *grad_output, ctx.gather_idx, ctx.scatter_idx
+                ctx.group, *grad_output, ctx.gather_idx, ctx.scatter_idx, ctx.use_sync
             ),
+            None,
             None,
             None,
         )
@@ -234,21 +236,24 @@ class SeqAllToAll5D(torch.autograd.Function):
         input: Tensor,
         scatter_idx: int = 3,
         gather_idx: int = 1,
+        use_sync: bool = False,
     ) -> Tensor:
 
         ctx.group = group
         ctx.scatter_idx = scatter_idx
         ctx.gather_idx = gather_idx
+        ctx.use_sync = use_sync
 
-        return all_to_all_5D(input, scatter_idx, gather_idx, group=group)
+        return all_to_all_5D(input, scatter_idx, gather_idx, group=group, use_sync=use_sync)
 
     @staticmethod
     def backward(ctx: Any, *grad_output: Tensor) -> Tuple[None, Tensor, None, None]:
         return (
             None,
             SeqAllToAll5D.apply(
-                ctx.group, *grad_output, ctx.gather_idx, ctx.scatter_idx
+                ctx.group, *grad_output, ctx.gather_idx, ctx.scatter_idx, use_sync=ctx.use_sync
             ),
+            None,
             None,
             None,
         )

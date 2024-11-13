@@ -1,6 +1,7 @@
 import torch
 import torch.distributed as dist
 from flash_attn.flash_attn_interface import _flash_attn_forward, _flash_attn_backward
+from yunchang.kernels import select_flash_attn_impl, FlashAttentionImpl
 from .utils import RingComm, update_out_and_lse
 
 
@@ -16,6 +17,7 @@ def stripe_flash_attn_forward(
     softcap=0.0,
     alibi_slopes=None,
     deterministic=False,
+    attn_type: FlashAttentionImpl = FlashAttentionImpl.FA,
 ):
     assert (
         causal
@@ -34,7 +36,8 @@ def stripe_flash_attn_forward(
             comm.commit()
 
         if step <= comm.rank:
-            block_out, _, _, _, _, block_lse, _, _ = _flash_attn_forward(
+            fn = select_flash_attn_impl(attn_type, stage="fwd-only")
+            block_out, block_lse = fn(
                 q,
                 k,
                 v,
@@ -48,7 +51,8 @@ def stripe_flash_attn_forward(
             )
             out, lse = update_out_and_lse(out, lse, block_out, block_lse)
         else:
-            block_out, _, _, _, _, block_lse, _, _ = _flash_attn_forward(
+            fn = select_flash_attn_impl(attn_type, stage="bwd-only")
+            block_out, block_lse = fn(
                 q[:, 1:],
                 k[:, :-1],
                 v[:, :-1],
@@ -89,6 +93,7 @@ def stripe_flash_attn_backward(
     softcap=0.0,
     alibi_slopes=None,
     deterministic=False,
+    attn_type: FlashAttentionImpl = FlashAttentionImpl.FA,
 ):
     assert (
         causal
@@ -112,7 +117,8 @@ def stripe_flash_attn_backward(
         shift_causal = step > kv_comm.rank
         softmax_lse_1 = None
         if not shift_causal:
-            _flash_attn_backward(
+            fn = select_flash_attn_impl(attn_type, stage="bwd-only")
+            fn(
                 dout,
                 q,
                 k,
@@ -135,7 +141,8 @@ def stripe_flash_attn_backward(
             if softmax_lse_1 is None:
                 # lazy init, since the last rank does not need softmax_lse_1
                 softmax_lse_1 = softmax_lse[:, :, 1:].contiguous()
-            _flash_attn_backward(
+            fn = select_flash_attn_impl(attn_type, stage="bwd-only")
+            fn(
                 dout[:, 1:],
                 q[:, 1:],
                 k[:, :-1],
@@ -206,6 +213,7 @@ class StripeFlashAttnFunc(torch.autograd.Function):
         deterministic,
         return_softmax,
         group,
+        attn_type: FlashAttentionImpl = FlashAttentionImpl.FA,
     ):
         if softmax_scale is None:
             softmax_scale = q.shape[-1] ** (-0.5)
@@ -225,6 +233,7 @@ class StripeFlashAttnFunc(torch.autograd.Function):
             softcap=softcap,
             alibi_slopes=alibi_slopes,
             deterministic=False,
+            attn_type=attn_type,
         )
         # this should be out_padded
         ctx.save_for_backward(q, k, v, out, softmax_lse)
@@ -236,6 +245,7 @@ class StripeFlashAttnFunc(torch.autograd.Function):
         ctx.alibi_slopes = alibi_slopes
         ctx.deterministic = deterministic
         ctx.group = group
+        ctx.attn_type = attn_type
         return out if not return_softmax else (out, softmax_lse, None)
 
     @staticmethod
@@ -256,8 +266,9 @@ class StripeFlashAttnFunc(torch.autograd.Function):
             softcap=ctx.softcap,
             alibi_slopes=ctx.alibi_slopes,
             deterministic=ctx.deterministic,
+            attn_type=ctx.attn_type,
         )
-        return dq, dk, dv, None, None, None, None, None, None, None, None, None
+        return dq, dk, dv, None, None, None, None, None, None, None, None, None, None
 
 
 def stripe_flash_attn_qkvpacked_func(
@@ -271,6 +282,7 @@ def stripe_flash_attn_qkvpacked_func(
     deterministic=False,
     return_attn_probs=False,
     group=None,
+    attn_type: FlashAttentionImpl = FlashAttentionImpl.FA,
 ):
     return StripeFlashAttnFunc.apply(
         qkv[:, :, 0],
@@ -285,6 +297,7 @@ def stripe_flash_attn_qkvpacked_func(
         deterministic,
         return_attn_probs,
         group,
+        attn_type,
     )
 
 
@@ -300,6 +313,7 @@ def stripe_flash_attn_kvpacked_func(
     deterministic=False,
     return_attn_probs=False,
     group=None,
+    attn_type: FlashAttentionImpl = FlashAttentionImpl.FA,
 ):
     return StripeFlashAttnFunc.apply(
         q,
@@ -314,6 +328,7 @@ def stripe_flash_attn_kvpacked_func(
         deterministic,
         return_attn_probs,
         group,
+        attn_type,
     )
 
 
@@ -330,6 +345,7 @@ def stripe_flash_attn_func(
     deterministic=False,
     return_attn_probs=False,
     group=None,
+    attn_type: FlashAttentionImpl = FlashAttentionImpl.FA,
 ):
     return StripeFlashAttnFunc.apply(
         q,
@@ -344,4 +360,5 @@ def stripe_flash_attn_func(
         deterministic,
         return_attn_probs,
         group,
+        attn_type,
     )

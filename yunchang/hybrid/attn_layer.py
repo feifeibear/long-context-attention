@@ -8,6 +8,7 @@ from torch import Tensor
 import torch.distributed as dist
 from .utils import RING_IMPL_DICT, RING_IMPL_QKVPACKED_DICT
 from yunchang.globals import PROCESS_GROUP
+from yunchang.kernels import FlashAttentionImpl
 
 
 class LongContextAttention(torch.nn.Module):
@@ -28,6 +29,7 @@ class LongContextAttention(torch.nn.Module):
         ring_impl_type: str = "basic",
         use_pack_qkv: bool = False,
         use_sync: bool = False,
+        attn_type: FlashAttentionImpl = FlashAttentionImpl.FA,
     ) -> None:
 
         super(LongContextAttention, self).__init__()
@@ -36,6 +38,7 @@ class LongContextAttention(torch.nn.Module):
 
         self.use_pack_qkv = use_pack_qkv
         self.use_sync = use_sync
+        self.attn_type = attn_type
         assert (
             self.ulysses_pg is not None or self.ring_pg is not None
         ), f"use set_seq_parallel_pg() first. Now ulysses pg {self.ulysses_pg} and ring pg {self.ring_pg}"
@@ -96,13 +99,13 @@ class LongContextAttention(torch.nn.Module):
             )
         else:
             query_layer = SeqAllToAll4D.apply(
-                self.ulysses_pg, query, self.scatter_idx, self.gather_idx, use_sync=self.use_sync
+                self.ulysses_pg, query, self.scatter_idx, self.gather_idx, self.use_sync
             )
             key_layer = SeqAllToAll4D.apply(
-                self.ulysses_pg, key, self.scatter_idx, self.gather_idx, use_sync=self.use_sync
+                self.ulysses_pg, key, self.scatter_idx, self.gather_idx, self.use_sync
             )
             value_layer = SeqAllToAll4D.apply(
-                self.ulysses_pg, value, self.scatter_idx, self.gather_idx, use_sync=self.use_sync
+                self.ulysses_pg, value, self.scatter_idx, self.gather_idx, self.use_sync
             )
 
             out = self.ring_attn_fn(
@@ -118,6 +121,7 @@ class LongContextAttention(torch.nn.Module):
                 deterministic=deterministic,
                 return_attn_probs=return_attn_probs,
                 group=self.ring_pg,
+                attn_type=self.attn_type,
             )
 
         if type(out) == tuple:
@@ -128,7 +132,7 @@ class LongContextAttention(torch.nn.Module):
         # (bs, seq_len, head_cnt/N, head_size) -> (bs, seq_len/N, head_cnt, head_size)
         # scatter 1, gather 2
         output = SeqAllToAll4D.apply(
-            self.ulysses_pg, context_layer, self.gather_idx, self.scatter_idx, use_sync=self.use_sync
+            self.ulysses_pg, context_layer, self.gather_idx, self.scatter_idx, self.use_sync
         )
 
         # out e.g., [s/p::h]
@@ -152,6 +156,7 @@ class LongContextAttentionQKVPacked(torch.nn.Module):
         gather_idx: int = 1,
         ring_impl_type: str = "basic",
         use_sync: bool = False,
+        attn_type: FlashAttentionImpl = FlashAttentionImpl.FA,
     ) -> None:
 
         super(LongContextAttentionQKVPacked, self).__init__()
@@ -166,7 +171,7 @@ class LongContextAttentionQKVPacked(torch.nn.Module):
         self.gather_idx = gather_idx
         self.use_sync = use_sync
         self.ring_attn_fn = RING_IMPL_QKVPACKED_DICT[ring_impl_type]
-
+        self.attn_type = attn_type
     def forward(
         self,
         qkv,
@@ -198,7 +203,7 @@ class LongContextAttentionQKVPacked(torch.nn.Module):
 
         if world_size > 1:
             qkv = SeqAllToAll5D.apply(
-                self.ulysses_pg, qkv, self.scatter_idx, self.gather_idx, use_sync=self.use_sync
+                self.ulysses_pg, qkv, self.scatter_idx, self.gather_idx, self.use_sync
             )
 
         out = self.ring_attn_fn(
@@ -212,6 +217,7 @@ class LongContextAttentionQKVPacked(torch.nn.Module):
             deterministic=deterministic,
             return_attn_probs=return_attn_probs,
             group=self.ring_pg,
+            attn_type=self.attn_type,
         )
 
         # print(f"out {out.shape}")
@@ -224,7 +230,7 @@ class LongContextAttentionQKVPacked(torch.nn.Module):
 
         if world_size > 1:
             out = SeqAllToAll4D.apply(
-                self.ulysses_pg, out, self.gather_idx, self.scatter_idx - 1, use_sync=self.use_sync
+                self.ulysses_pg, out, self.gather_idx, self.scatter_idx - 1, self.use_sync
             )
         # out e.g., [s/p::h]
         return out

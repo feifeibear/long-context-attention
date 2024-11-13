@@ -1,43 +1,19 @@
-# Copyright (c) Microsoft Corporation.
+# Copyright (c) Microsoft Corporation and Jiarui Fang
 # SPDX-License-Identifier: Apache-2.0
+# DeepSpeed Team & Jiarui Fang
 
-# DeepSpeed Team
 
 import torch
 
 from typing import Any
 from torch import Tensor
-
+from yunchang.kernels import FlashAttentionImpl, select_flash_attn_impl
 import torch.distributed as dist
 from flash_attn import flash_attn_func
 from yunchang.comm.all_to_all import SeqAllToAll4D
 import torch.nn.functional as F
 
-def torch_attn(query,
-            key,
-            value,
-            dropout_p=0.0, 
-            softmax_scale=None, 
-            causal=False,
-            window_size=(-1, -1), alibi_slopes=None, deterministic=False,
-            return_attn_probs=False,
-            ):
-    batch_size, seq_len, hs, hd = query.size()
-    query = query.view(batch_size, -1, hs, hd).transpose(1, 2)
-    key = key.view(batch_size, -1, hs, hd).transpose(1, 2)
-    value = value.view(batch_size, -1, hs, hd).transpose(1, 2)
 
-    # the output of sdp = (batch, num_heads, seq_len, head_dim)
-    # TODO: add support for attn.scale when we move to Torch 2.1
-    hidden_states = F.scaled_dot_product_attention(
-        query, key, value, dropout_p=dropout_p, is_causal=causal
-    )
-
-    hidden_states = hidden_states.transpose(1, 2).reshape(
-        batch_size, -1, hs, hd
-    )
-    hidden_states = hidden_states.to(query.dtype)
-    return hidden_states
 
 class UlyssesAttention(torch.nn.Module):
     """Initialization.
@@ -47,6 +23,8 @@ class UlyssesAttention(torch.nn.Module):
         sequence_process_group (ProcessGroup): sequence parallel process group
         scatter_idx (int): scatter_idx for all2all comm
         gather_idx (int): gather_idx for all2all comm
+        use_sync (bool): whether to synchronize after all-to-all. This flag can save cuda memory but will slow down the speed.
+        attn_type (FlashAttentionImpl): attention type enum
     """
 
     def __init__(
@@ -54,18 +32,19 @@ class UlyssesAttention(torch.nn.Module):
         sequence_process_group: dist.ProcessGroup = None,
         scatter_idx: int = 2,
         gather_idx: int = 1,
-        use_fa : bool = True 
+        use_sync: bool = False,
+        attn_type : FlashAttentionImpl = FlashAttentionImpl.FA
     ) -> None:
 
         super(UlyssesAttention, self).__init__()
         self.spg = sequence_process_group
         self.scatter_idx = scatter_idx
         self.gather_idx = gather_idx
-        self.use_fa = use_fa
+        self.attn_type = attn_type
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         gpu_name = torch.cuda.get_device_name(device)
         if "Turing" in gpu_name or "Tesla" in gpu_name or "T4" in gpu_name:
-            self.use_fa = False
+            self.attn_type = FlashAttentionImpl.TORCH
 
     def forward(
         self,
@@ -103,11 +82,12 @@ class UlyssesAttention(torch.nn.Module):
         k = SeqAllToAll4D.apply(self.spg, key, self.scatter_idx, self.gather_idx)
         v = SeqAllToAll4D.apply(self.spg, value, self.scatter_idx, self.gather_idx)
 
-        if self.use_fa:
-            fn = flash_attn_func
-        else:
-            fn = torch_attn
-            
+        fn = select_flash_attn_impl(self.attn_type, stage="fwd-bwd")
+        # from flash_attn import flash_attn_func
+        # fn = flash_attn_func
+        # print(f"fn: {fn}")
+        # fn: <function flash_attn_func at 0x7f8950679fc0>
+        # fn: <function flash_attn_func at 0x7fc4d6e796c0>
         context_layer = fn(
             q,
             k,
