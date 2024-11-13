@@ -1,8 +1,8 @@
 import torch
 import torch.distributed as dist
-from flash_attn.flash_attn_interface import _flash_attn_forward, _flash_attn_backward
+# from flash_attn.flash_attn_interface import _flash_attn_forward, _flash_attn_backward
 from .utils import RingComm, update_out_and_lse
-
+from yunchang.kernels import select_flash_attn_impl, FlashAttentionImpl
 
 def ring_flash_attn_forward(
     process_group,
@@ -16,6 +16,7 @@ def ring_flash_attn_forward(
     softcap=0.0,
     alibi_slopes=None,
     deterministic=False,
+    attn_type: FlashAttentionImpl = FlashAttentionImpl.FA,
 ):
     comm = RingComm(process_group)
 
@@ -31,7 +32,20 @@ def ring_flash_attn_forward(
             comm.commit()
 
         if not causal or step <= comm.rank:
-            block_out, _, _, _, _, block_lse, _, _ = _flash_attn_forward(
+            # block_out, _, _, _, _, block_lse, _, _ = _flash_attn_forward(
+            #     q,
+            #     k,
+            #     v,
+            #     dropout_p,
+            #     softmax_scale,
+            #     causal=causal and step == 0,
+            #     window_size=window_size,
+            #     softcap=softcap,
+            #     alibi_slopes=alibi_slopes,
+            #     return_softmax=True and dropout_p > 0,
+            # )
+            fn = select_flash_attn_impl(attn_type, stage="fwd-only")
+            block_out, block_lse = fn(
                 q,
                 k,
                 v,
@@ -70,6 +84,7 @@ def ring_flash_attn_backward(
     softcap=0.0,
     alibi_slopes=None,
     deterministic=False,
+    attn_type: FlashAttentionImpl = FlashAttentionImpl.FA,
 ):
     kv_comm = RingComm(process_group)
     d_kv_comm = RingComm(process_group)
@@ -90,7 +105,8 @@ def ring_flash_attn_backward(
             kv_comm.commit()
         if step <= kv_comm.rank or not causal:
             bwd_causal = causal and step == 0
-            _flash_attn_backward(
+            fn = select_flash_attn_impl(attn_type, stage="bwd-only")
+            fn(
                 dout,
                 q,
                 k,
@@ -154,6 +170,7 @@ class RingFlashAttnFunc(torch.autograd.Function):
         deterministic,
         return_softmax,
         group,
+        attn_type,
     ):
         if softmax_scale is None:
             softmax_scale = q.shape[-1] ** (-0.5)
@@ -173,6 +190,7 @@ class RingFlashAttnFunc(torch.autograd.Function):
             softcap=softcap,
             alibi_slopes=alibi_slopes,
             deterministic=False,
+            attn_type=attn_type,
         )
         # this should be out_padded
         ctx.save_for_backward(q, k, v, out, softmax_lse)
@@ -184,6 +202,7 @@ class RingFlashAttnFunc(torch.autograd.Function):
         ctx.alibi_slopes = alibi_slopes
         ctx.deterministic = deterministic
         ctx.group = group
+        ctx.attn_type = attn_type
         return out if not return_softmax else (out, softmax_lse, None)
 
     @staticmethod
@@ -204,8 +223,9 @@ class RingFlashAttnFunc(torch.autograd.Function):
             softcap=ctx.softcap,
             alibi_slopes=ctx.alibi_slopes,
             deterministic=ctx.deterministic,
+            attn_type=ctx.attn_type,
         )
-        return dq, dk, dv, None, None, None, None, None, None, None, None, None
+        return dq, dk, dv, None, None, None, None, None, None, None, None, None, None
 
 
 def ring_flash_attn_qkvpacked_func(
@@ -219,6 +239,7 @@ def ring_flash_attn_qkvpacked_func(
     deterministic=False,
     return_attn_probs=False,
     group=None,
+    attn_type: FlashAttentionImpl = FlashAttentionImpl.FA,
 ):
     return RingFlashAttnFunc.apply(
         qkv[:, :, 0],
@@ -233,6 +254,7 @@ def ring_flash_attn_qkvpacked_func(
         deterministic,
         return_attn_probs,
         group,
+        attn_type,
     )
 
 
@@ -248,6 +270,7 @@ def ring_flash_attn_kvpacked_func(
     deterministic=False,
     return_attn_probs=False,
     group=None,
+    attn_type: FlashAttentionImpl = FlashAttentionImpl.FA,
 ):
     return RingFlashAttnFunc.apply(
         q,
@@ -262,6 +285,7 @@ def ring_flash_attn_kvpacked_func(
         deterministic,
         return_attn_probs,
         group,
+        attn_type,
     )
 
 
@@ -278,6 +302,7 @@ def ring_flash_attn_func(
     deterministic=False,
     return_attn_probs=False,
     group=None,
+    attn_type: FlashAttentionImpl = FlashAttentionImpl.FA,
 ):
     return RingFlashAttnFunc.apply(
         q,
@@ -292,4 +317,5 @@ def ring_flash_attn_func(
         deterministic,
         return_attn_probs,
         group,
+        attn_type,
     )

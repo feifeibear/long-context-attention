@@ -7,7 +7,7 @@ from yunchang import (
 import torch
 import torch.distributed as dist
 from flash_attn import flash_attn_func
-
+from yunchang.kernels import FlashAttentionImpl
 from test_utils import attention_ref
 
 def log(msg, a, rank0_only=False):
@@ -46,7 +46,7 @@ if __name__ == "__main__":
     rank = dist.get_rank()
     world_size = dist.get_world_size()
 
-    assert world_size == 4, f"torchrun --nproc_per_node=4  test/test_hybrid_attn_v2.py"
+    assert world_size == 4, f"torchrun --nproc_per_node=4  test/test_hybrid_attn.py"
     # Inference mainly uses fp16; ROCM flash attention with bf16 precision is slightly larger, will be fixed soon 
     dtype = torch.bfloat16
     device = torch.device(f"cuda:{rank}")
@@ -63,7 +63,7 @@ if __name__ == "__main__":
     assert seqlen % world_size == 0
     assert d % 8 == 0
 
-    ring_impl_type = "zigzag"  # You can change this to "basic" or "zigzag" if needed
+    ring_impl_type = "basic"  # You can change this to "basic" or "zigzag" if needed
 
     # Prepare inputs
     q = torch.randn(
@@ -109,7 +109,7 @@ if __name__ == "__main__":
         v, rank, world_size=world_size, rd=sp_ring_degree, ud=sp_ulysses_degree
     ).detach().clone()
     local_v.requires_grad = True
-    usp_attn = LongContextAttention(ring_impl_type=ring_impl_type)
+    usp_attn = LongContextAttention(ring_impl_type=ring_impl_type, attn_type=FlashAttentionImpl.FA)
 
     if rank == 0:
         print("#" * 30)

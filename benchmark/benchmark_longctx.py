@@ -91,7 +91,7 @@ def get_local_rank():
     return local_rank
 
 def benchmark(num_iter=100, forward_only=True, log=True, profile=False):
-    dtype = torch.bfloat16
+    dtype = torch.float16
     rank = dist.get_rank()
     local_rank = get_local_rank()
     world_size = dist.get_world_size()
@@ -255,3 +255,4 @@ if __name__ == "__main__":
     torch.cuda.empty_cache()
     benchmark(forward_only=forward_only, log=False)
     benchmark(forward_only=forward_only, log=True, profile=args.use_profiler)
+    dist.destroy_process_group()

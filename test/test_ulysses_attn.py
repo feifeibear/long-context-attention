@@ -3,7 +3,7 @@ import torch.distributed as dist
 from yunchang import UlyssesAttention
 
 from flash_attn import flash_attn_func
-
+from yunchang.kernels import FlashAttentionImpl
 
 def log(msg, a, rank0_only=False):
     world_size = dist.get_world_size()
@@ -79,7 +79,7 @@ if __name__ == "__main__":
     # prcess_group == sequence_process_group
     sp_pg = None #dist.new_group(ranks=[i for i in range(world_size)])
 
-    dist_attn = UlyssesAttention(sp_pg)
+    dist_attn = UlyssesAttention(sp_pg, attn_type=FlashAttentionImpl.FA)
 
     if rank == 0:
         print("#" * 30)
