@@ -13,7 +13,6 @@ except ImportError:
     HAS_FLASH_ATTN_HOPPER = False
 
 import torch.nn.functional as F
-from inspect import signature
 
 def torch_attn(q, k, v, dropout_p = 0.0, 
             softmax_scale = None, 
@@ -102,19 +101,6 @@ def flash_attn3_func_backward(dout, q, k, v, out, softmax_lse,
     # (dout, q, k, v, out, softmax_lse, dq, dk, dv, softmax_scale, causal):
     assert HAS_FLASH_ATTN_HOPPER
 
-        # dout,
-        # q,
-        # k,
-        # v,
-        # out,
-        # softmax_lse,
-        # dq,
-        # dk,
-        # dv,
-        # softmax_scale,
-        # causal,
-        # window_size,
-        # deterministic=False,
     flash_attn_func_hopper_backward(
         dout,
         q,
