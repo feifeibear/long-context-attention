@@ -64,12 +64,6 @@ parser.add_argument(
     help="attention type",
 )
 parser.add_argument(
-    "--dropout_p",
-    type=float,
-    default=0.0,
-    help="dropout probability",
-)
-parser.add_argument(
     "--causal",
     type=bool,
     default=True,
