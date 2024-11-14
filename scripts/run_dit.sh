@@ -41,13 +41,8 @@ for attn_type in "fa" "fa3"; do
 for ULYSSES_DEGREE in 8 4 2 1; do
 for RING_IMPL_TYPE in "basic"; do
 torchrun --nproc_per_node $GPU_NUM --node_rank $NRANK benchmark/benchmark_longctx.py \
-<<<<<<< HEAD
 --nheads $NHEADS --group_num $GROUP_NUM --batch_size 1 $FWD_FLAG --seq_len $SEQLEN --head_size $HEAD_SIZE \
 --ulysses_degree $ULYSSES_DEGREE --ring_impl_type $RING_IMPL_TYPE --no_causal --attn_type $attn_type
-=======
---nheads $NHEADS --group_num $GROUP_NUM --batch_size 1 $FWD_FLAG --seq_len $SEQLEN \
---ulysses_degree $ULYSSES_DEGREE --ring_impl_type $RING_IMPL_TYPE --causal False --attn_type $attn_type
->>>>>>> main
 done
 done
 done
