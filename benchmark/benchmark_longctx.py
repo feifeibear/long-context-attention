@@ -56,6 +56,13 @@ parser.add_argument(
     default=False,
     help="async allgather",
 )
+parser.add_argument(
+    "--attn_type",
+    type=str,
+    default="fa",
+    choices=["fa", "fa3"],
+    help="attention type",
+)
 
 args = parser.parse_args()
 
@@ -148,7 +155,9 @@ def benchmark(num_iter=100, forward_only=True, log=True, profile=False):
     if args.use_async_all_to_all:
         longctx_attn = AsyncLongContextAttention(ring_impl_type=args.ring_impl_type)
     else:
-        longctx_attn = LongContextAttention(ring_impl_type=args.ring_impl_type)
+        from yunchang.kernels import FlashAttentionImpl
+        attn_type = FlashAttentionImpl.from_string(args.attn_type) 
+        longctx_attn = LongContextAttention(ring_impl_type=args.ring_impl_type, attn_type=attn_type)
 
     out = longctx_attn(
         q,

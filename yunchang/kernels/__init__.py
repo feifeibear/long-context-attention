@@ -14,6 +14,13 @@ class FlashAttentionImpl(Enum):
     FA3 = "fa3"
     TORCH = "torch"
 
+    @classmethod
+    def from_string(cls, s: str):
+        for member in cls:
+            if member.value == s:
+                return member
+        raise ValueError(f"'{s}' is not a valid {cls.__name__}")
+
 def select_flash_attn_impl(impl_type: FlashAttentionImpl, stage : str = "fwd-bwd"):
     if impl_type == FlashAttentionImpl.FA:
         if stage == "fwd-only":
