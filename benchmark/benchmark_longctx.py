@@ -263,7 +263,7 @@ if __name__ == "__main__":
     torch.cuda.empty_cache()
     if rank == 0:
         color_print(
-            f"# long context attention {args.ring_impl_type}. "
+            f"ring_impl_type: {args.ring_impl_type}. "
             f"nheads: {args.nheads} head_size: {args.head_size} seq_len: {args.seq_len} "
             f"ulysses_degree : {args.ulysses_degree} fwd_only {forward_only} use_ulysses_lowdim {args.use_ulysses_lowdim}. "
             f"use_qkvpack: {args.use_qkvpack} "
