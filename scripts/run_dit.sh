@@ -27,14 +27,8 @@ export GLOO_SOCKET_IFNAME=eth0
 # comment this line fwd+bwd
 # FWD_FLAG="--fwd_only"
 
-<<<<<<< HEAD
-NHEADS=24
-SEQLEN=131072
-HEAD_SIZE=128
-=======
 NHEADS=72
 SEQLEN=131072
->>>>>>> main
 GROUP_NUM=1
 GPU_NUM=8
 ULYSSES_DEGREE=8
