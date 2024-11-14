@@ -87,11 +87,12 @@ def flash_attn_backward(dout, q, k, v, out, softmax_lse, block_dq_buffer, block_
 
 def flash_attn3_func_forward(q, k, v, dropout_p, softmax_scale, causal, window_size, softcap, alibi_slopes, return_softmax):
     assert HAS_FLASH_ATTN_HOPPER
-    out, softmax_lse  = flash_attn_forward_hopper(
-        q, k, v, softmax_scale, causal,
+    # current signature of flash_attn_forward_hopper:
+    # (q, k, v, softmax_scale, causal, window_size, descale_q=None, descale_k=None, descale_v=None, gqa_parallel=False)
+    out, q, k, v, out_padded, softmax_lse, S_dmask = flash_attn_forward_hopper(
+        q, k, v, softmax_scale, causal, window_size
     )
     return out, softmax_lse
-
 
 def flash_attn3_func_backward(dout, q, k, v, out, softmax_lse, 
                                     block_dq_buffer, block_dk_buffer, block_dv_buffer, 
@@ -99,6 +100,7 @@ def flash_attn3_func_backward(dout, q, k, v, out, softmax_lse,
                                     bwd_causal, window_size, softcap, alibi_slopes, deterministic, rng_state):
     # (dout, q, k, v, out, softmax_lse, dq, dk, dv, softmax_scale, causal):
     assert HAS_FLASH_ATTN_HOPPER
+
     flash_attn_func_hopper_backward(
         dout,
         q,
@@ -110,5 +112,7 @@ def flash_attn3_func_backward(dout, q, k, v, out, softmax_lse,
         block_dk_buffer,
         block_dv_buffer,
         softmax_scale,
-        bwd_causal
+        bwd_causal,
+        window_size,
+        deterministic,
     )
