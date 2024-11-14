@@ -63,11 +63,12 @@ parser.add_argument(
     choices=["fa", "fa3"],
     help="attention type",
 )
+# decault causal=True for LLM. no_causal is for DiT.
 parser.add_argument(
-    "--causal",
-    type=bool,
-    default=True,
-    help="use causal attention",
+    "--no_causal",
+    action="store_true",
+    default=False,
+    help="use no causal attention",
 )
 
 args = parser.parse_args()
@@ -103,7 +104,7 @@ def get_local_rank():
     local_rank = int(os.getenv('LOCAL_RANK', '0'))
     return local_rank
 
-def benchmark(num_iter=100, forward_only=True, log=True, profile=False):
+def benchmark(num_iter=10, forward_only=True, log=True, profile=False):
     dtype = torch.float16
     rank = dist.get_rank()
     local_rank = get_local_rank()
@@ -118,7 +119,7 @@ def benchmark(num_iter=100, forward_only=True, log=True, profile=False):
     d = args.head_size
 
     dropout_p = 0.0
-    causal = args.causal
+    causal = not args.no_causal
     deterministic = False
 
     assert seqlen % (2 * world_size) == 0, f"seqlen {seqlen} world_size {world_size}"
@@ -267,7 +268,7 @@ if __name__ == "__main__":
             f"ulysses_degree : {args.ulysses_degree} fwd_only {forward_only} use_ulysses_lowdim {args.use_ulysses_lowdim}. "
             f"use_qkvpack: {args.use_qkvpack} "
             f"asyn_all_to_all: {args.use_async_all_to_all} "
-            f"causal: {args.causal} "
+            f"causal: {not args.no_causal} "
             f"attn_type: {args.attn_type} "
         )
     torch.cuda.empty_cache()
