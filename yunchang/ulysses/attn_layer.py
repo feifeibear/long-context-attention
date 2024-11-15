@@ -10,8 +10,6 @@ from torch import Tensor
 from yunchang.kernels import FlashAttentionImpl, select_flash_attn_impl
 import torch.distributed as dist
 from yunchang.comm.all_to_all import SeqAllToAll4D
-import torch.nn.functional as F
-
 
 
 class UlyssesAttention(torch.nn.Module):
@@ -32,20 +30,21 @@ class UlyssesAttention(torch.nn.Module):
         scatter_idx: int = 2,
         gather_idx: int = 1,
         use_sync: bool = False,
-        attn_type : FlashAttentionImpl = FlashAttentionImpl.FA
+        attn_type : FlashAttentionImpl = FlashAttentionImpl.FA,
     ) -> None:
 
         super(UlyssesAttention, self).__init__()
         self.spg = sequence_process_group
         self.scatter_idx = scatter_idx
         self.gather_idx = gather_idx
+        self.use_sync = use_sync
         self.attn_type = attn_type
-        self.attn_fn = select_flash_attn_impl(attn_type)
 
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         gpu_name = torch.cuda.get_device_name(device)
         if "Turing" in gpu_name or "Tesla" in gpu_name or "T4" in gpu_name:
             self.attn_type = FlashAttentionImpl.TORCH
+        self.attn_fn = select_flash_attn_impl(self.attn_type, stage="fwd-bwd")
 
     def forward(
         self,
@@ -79,15 +78,13 @@ class UlyssesAttention(torch.nn.Module):
         # (bs, seq_len/N, head_cnt, head_size) -> (bs, seq_len, head_cnt/N, head_size)
 
         # scatter 2, gather 1
-        q = SeqAllToAll4D.apply(self.spg, query, self.scatter_idx, self.gather_idx)
-        k = SeqAllToAll4D.apply(self.spg, key, self.scatter_idx, self.gather_idx)
-        v = SeqAllToAll4D.apply(self.spg, value, self.scatter_idx, self.gather_idx)
-
-
+        q = SeqAllToAll4D.apply(self.spg, query, self.scatter_idx, self.gather_idx, self.use_sync)
+        k = SeqAllToAll4D.apply(self.spg, key, self.scatter_idx, self.gather_idx, self.use_sync)
+        v = SeqAllToAll4D.apply(self.spg, value, self.scatter_idx, self.gather_idx, self.use_sync)
 
         if softmax_scale is None:
             softmax_scale = q.shape[-1] ** -0.5
-            
+
         context_layer = self.attn_fn(
             q,
             k,
@@ -108,7 +105,7 @@ class UlyssesAttention(torch.nn.Module):
         # (bs, seq_len, head_cnt/N, head_size) -> (bs, seq_len/N, head_cnt, head_size)
         # scatter 1, gather 2
         output = SeqAllToAll4D.apply(
-            self.spg, context_layer, self.gather_idx, self.scatter_idx
+            self.spg, context_layer, self.gather_idx, self.scatter_idx, self.use_sync
         )
 
         # out e.g., [s/p::h]
