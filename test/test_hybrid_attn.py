@@ -38,9 +38,6 @@ def log(msg, a, rank0_only=False):
 # test it with:
 # torchrun --nproc_per_node=4  test/test_hybrid_attn_v2.py
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--causal', type=bool, default=True, help='Whether to use causal attention')
-    args = parser.parse_args()
 
     torch.random.manual_seed(0)
     use_bwd = True
@@ -59,7 +56,7 @@ if __name__ == "__main__":
     nheads = 4
     d = 128
     dropout_p = 0
-    causal = args.causal
+    causal = True
     deterministic = False
 
     assert seqlen % world_size == 0
