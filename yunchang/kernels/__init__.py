@@ -30,6 +30,8 @@ def select_flash_attn_impl(impl_type: FlashAttentionImpl, stage : str = "fwd-bwd
         elif stage == "fwd-bwd":
             print(f"flash_attn_func: {flash_attn_func} here")
             return flash_attn_func
+        else:
+            raise ValueError(f"Unknown stage: {stage}")
         
     elif impl_type == FlashAttentionImpl.FA3:
         if stage == "fwd-only":
@@ -52,6 +54,8 @@ def select_flash_attn_impl(impl_type: FlashAttentionImpl, stage : str = "fwd-bwd
                 return flash3_attn_func(q, k, v, softmax_scale=softmax_scale, causal=causal)
         
             return fn
+        else:
+            raise ValueError(f"Unknown stage: {stage}")
 
     elif impl_type == FlashAttentionImpl.TORCH:
         if stage == "fwd-bwd":

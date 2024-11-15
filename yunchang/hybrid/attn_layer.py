@@ -96,6 +96,7 @@ class LongContextAttention(torch.nn.Module):
                 deterministic=deterministic,
                 return_attn_probs=return_attn_probs,
                 group=self.ring_pg,
+                attn_type=self.attn_type,
             )
         else:
             query_layer = SeqAllToAll4D.apply(
