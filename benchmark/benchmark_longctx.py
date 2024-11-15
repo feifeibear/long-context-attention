@@ -119,11 +119,7 @@ def benchmark(num_iter=10, forward_only=True, log=True, profile=False):
     d = args.head_size
 
     dropout_p = 0.0
-<<<<<<< HEAD
     causal = not args.no_causal
-=======
-    causal = args.causal
->>>>>>> main
     deterministic = False
 
     assert seqlen % (2 * world_size) == 0, f"seqlen {seqlen} world_size {world_size}"
@@ -267,20 +263,12 @@ if __name__ == "__main__":
     torch.cuda.empty_cache()
     if rank == 0:
         color_print(
-<<<<<<< HEAD
             f"ring_impl_type: {args.ring_impl_type}. "
-=======
-            f"# long context attention {args.ring_impl_type}. "
->>>>>>> main
             f"nheads: {args.nheads} head_size: {args.head_size} seq_len: {args.seq_len} "
             f"ulysses_degree : {args.ulysses_degree} fwd_only {forward_only} use_ulysses_lowdim {args.use_ulysses_lowdim}. "
             f"use_qkvpack: {args.use_qkvpack} "
             f"asyn_all_to_all: {args.use_async_all_to_all} "
-<<<<<<< HEAD
             f"causal: {not args.no_causal} "
-=======
-            f"causal: {args.causal} "
->>>>>>> main
             f"attn_type: {args.attn_type} "
         )
     torch.cuda.empty_cache()
