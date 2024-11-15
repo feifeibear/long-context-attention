@@ -44,6 +44,45 @@ In short, we take the `zigzag` ring attention implementation as an example:
 2. extract local tensors with `zigzag_extract_local`. We need reorder the input tokens or input tensors for load balance ring attention.
 3. then apply `LongContextAttention(ring_impl_type="zigzag")` as a drop-in replacement for Attention implementation.
 
+````python
+from yunchang import (
+    AsyncLongContextAttention,
+    LongContextAttention,
+    set_seq_parallel_pg,
+    EXTRACT_FUNC_DICT
+)
+from yunchang.kernels import FlashAttentionImpl
+
+sp_ulysses_degree = 2
+sp_ring_degree = 4
+
+# support world_size = 8
+set_seq_parallel_pg(sp_ulysses_degree, sp_ring_degree, rank, world_size)
+
+# attn_type could be FA, FA3, TORCH.
+longctx_attn = LongContextAttention(ring_impl_type="zigzag", attn_type=FlashAttentionImpl.FA)
+
+# extract a local shard for the global Q, K, V.
+local_q = EXTRACT_FUNC_DICT["zigzag"](
+        Q, rank, world_size=world_size, rd=sp_ring_degree, ud=sp_ulysses_degree
+    ).detach().clone()
+...
+
+
+local_out = usp_attn(
+        local_q,
+        local_k,
+        local_v,
+        dropout_p=dropout_p,
+        causal=True, # zigzag and stripe is load balance strategy for causal=True
+        window_size=window_size,
+        softcap=0.0,
+        alibi_slopes=alibi_slopes,
+        deterministic=deterministic,
+        return_attn_probs=True,
+    )
+```
+
 ### Install
 
 Option 1: pip install from pypi. 
@@ -52,11 +91,19 @@ Option 1: pip install from pypi.
 
 `pip install yunchang==0.2` (flash_attn < 2.6.0)
 
+#### Apply FlashAttention V3: Since FA V3 is beta-released, you need to install FlashAttention V3 from source code.
+
+Follow the [FlashAttention beta-release](https://github.com/Dao-AILab/flash-attention?tab=readme-ov-file#flashattention-3-beta-release) to install V3 for NVIDIA Hopper GPUs.
+
+We applied the Nov 10 2024 commit `b443207c1fc4c98e4532aad4e88cfee1d590d996`.
+
+
 Option 2: build from local.
 
 `pip install .`
 
 Install for AMD GPU: [install_amd.md](./docs/install_amd.md)
+
 
 ### Verified in Megatron-LM
 The loss curves for Data Parallel (DP) and Unified Sequence Parallel (ulysses=2+ring=2) are closely aligned, as illustrated in the figure. This alignment confirms the accuracy of the unified sequence parallel.
