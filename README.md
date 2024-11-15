@@ -34,7 +34,7 @@ Furthermore, Ring-Attention utilizes asynchronous peer-to-peer communication, wh
     <img src="./media/usp.png">
 </p>
 
-### Usage
+### 1. Usage
 
 Please refer to [test/test_hybrid_qkvpacked_attn.py](./test/test_hybrid_qkvpacked_attn.py) and [test/test_hybrid_attn.py](./test/test_hybrid_attn.py) for usage.
 
@@ -44,7 +44,7 @@ In short, we take the `zigzag` ring attention implementation as an example:
 2. extract local tensors with `zigzag_extract_local`. We need reorder the input tokens or input tensors for load balance ring attention.
 3. then apply `LongContextAttention(ring_impl_type="zigzag")` as a drop-in replacement for Attention implementation.
 
-````python
+```python
 from yunchang import (
     AsyncLongContextAttention,
     LongContextAttention,
@@ -81,9 +81,11 @@ local_out = usp_attn(
         deterministic=deterministic,
         return_attn_probs=True,
     )
+
 ```
 
-### Install
+
+### 2. Installation
 
 Option 1: pip install from pypi. 
 
@@ -105,7 +107,13 @@ Option 2: build from local.
 Install for AMD GPU: [install_amd.md](./docs/install_amd.md)
 
 
-### Verified in Megatron-LM
+### 3.Test
+
+```bash
+torchrun --nproc_per_node 8 test/test_hybrid_qkvpacked_attn.py
+```
+
+### 4. Verified in Megatron-LM
 The loss curves for Data Parallel (DP) and Unified Sequence Parallel (ulysses=2+ring=2) are closely aligned, as illustrated in the figure. This alignment confirms the accuracy of the unified sequence parallel.
 
 <p align="center">
@@ -118,30 +126,7 @@ In Megatron-LM, you can reorder the input tokens before feeding them into the mo
 
 For an example implementation, you can check out this [PR](https://github.com/FlagOpen/FlagScale/commit/f98ee1e293bd906cc77f512f7a884b2030c10a12), which integrates USP into a BAAI's Megatron-LM framework.
 
-## Best Practice for 4D Parallelism
-
-We analyze the impact of introducing Sequnce Parallelism to Data/ZeRO/Tensor/Pipeline Parallelism in a technique report, which can be found at [here](https://arxiv.org/abs/2405.07719).
-
-Some best practices are listed here:
-
-1. We suggest using Unified-SP in place of SP-Ring and SP-Ulysses, as it encompasses the capabilities of both while offering additional benefits.
-
-2. DP (data parallelism) vs SP: We suggest prioritizing the use of DP over SP if possible. 
-Only when the batch size (bs) is insufficient for partitioning should one consider whether to employ SP
-
-3. Utilizing SP, it should always be used in conjunction wit ZeRO-1/2.
-
-4. Unified-SP has lower communication cost than Tensor Parallel with megatron-lm sequence parallelism (TP-sp)! You can use Unified-SP to replace TP for better speed. However, now switching TP (tensor parallelism) to SP+ZeRO2 cannot increase the sequence length in training. SP+ZeRO3 can train a similar sequence length as TP-sp. We suggest that SP may have an advantage over TP when employing GQA in terms of communication cost, as GQA can reduce the communication cost of SP without affecting TP.
-
-5. Setting a higher parallel degree of SP parallelism is possible, which may need to set a large ring degree when the head number is limited, to train a long sequence across a greater number of computational devices. But TP could not be set a high parallel.
-
-### Test
-
-```bash
-torchrun --nproc_per_node 8 test/test_hybrid_qkvpacked_attn.py
-```
-
-### Benchmark
+### 6. Benchmark
 
 
 ```bash
@@ -170,7 +155,26 @@ Some Conclusions:
 
 4. Hybrid parallelism works well to heterogeneous network devices. For example, on an 8-GPU L20 setup, the optimal performance is achieved when ulysess_degree is set to 2 and ring_degree is set to 4.
 
-## Projects apply USP
+### 7. Best Practice for 4D Parallelism
+
+We analyze the impact of introducing Sequnce Parallelism to Data/ZeRO/Tensor/Pipeline Parallelism in a technique report, which can be found at [here](https://arxiv.org/abs/2405.07719).
+
+Some best practices are listed here:
+
+1. We suggest using Unified-SP in place of SP-Ring and SP-Ulysses, as it encompasses the capabilities of both while offering additional benefits.
+
+2. DP (data parallelism) vs SP: We suggest prioritizing the use of DP over SP if possible. 
+Only when the batch size (bs) is insufficient for partitioning should one consider whether to employ SP
+
+3. Utilizing SP, it should always be used in conjunction wit ZeRO-1/2.
+
+4. Unified-SP has lower communication cost than Tensor Parallel with megatron-lm sequence parallelism (TP-sp)! You can use Unified-SP to replace TP for better speed. However, now switching TP (tensor parallelism) to SP+ZeRO2 cannot increase the sequence length in training. SP+ZeRO3 can train a similar sequence length as TP-sp. We suggest that SP may have an advantage over TP when employing GQA in terms of communication cost, as GQA can reduce the communication cost of SP without affecting TP.
+
+5. Setting a higher parallel degree of SP parallelism is possible, which may need to set a large ring degree when the head number is limited, to train a long sequence across a greater number of computational devices. But TP could not be set a high parallel.
+
+
+
+### 8. Projects apply USP
 I am honored that this repository has contributed to the following projects:
 
 1. [xdit-project/xDiT](https://github.com/xdit-project/xDiT)
@@ -181,8 +185,9 @@ I am honored that this repository has contributed to the following projects:
 6. [FlagOpen/FlagScale](https://github.com/FlagOpen/FlagScale/commit/f98ee1e293bd906cc77f512f7a884b2030c10a12)
 7. [zhiyuanhubj/LongRecipe](https://github.com/zhiyuanhubj/LongRecipe)
 8. [NVIDIA/TransformerEngine](https://github.com/NVIDIA/TransformerEngine/blob/54aa12a9a1f166c53a20f17f309adeab5698f5f6/transformer_engine/pytorch/attention.py#L1542)
-
-## Cite Us
+9. [xdit-project/mochi-xdit](https://github.com/xdit-project/mochi-xdit)
+ 
+### 9. Cite Us
 ```
 @article{fang2024unified,
   title={USP: A Unified Sequence Parallelism Approach for Long Context Generative AI},
