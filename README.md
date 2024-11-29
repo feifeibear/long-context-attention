@@ -189,10 +189,15 @@ I am honored that this repository has contributed to the following projects:
  
 ### 9. Cite Us
 ```
+[USP: A Unified Sequence Parallelism Approach for Long Context Generative AI](https://arxiv.org/abs/2405.07719)
+
+
+```
 @article{fang2024unified,
-  title={USP: A Unified Sequence Parallelism Approach for Long Context Generative AI},
+  title={A Unified Sequence Parallelism Approach for Long Context Generative AI},
   author={Fang, Jiarui and Zhao, Shangchun},
   journal={arXiv preprint arXiv:2405.07719},
   year={2024}
 }
+
 ```
