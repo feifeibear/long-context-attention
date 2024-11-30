@@ -188,9 +188,8 @@ I am honored that this repository has contributed to the following projects:
 9. [xdit-project/mochi-xdit](https://github.com/xdit-project/mochi-xdit)
  
 ### 9. Cite Us
-```
-[USP: A Unified Sequence Parallelism Approach for Long Context Generative AI](https://arxiv.org/abs/2405.07719)
 
+[USP: A Unified Sequence Parallelism Approach for Long Context Generative AI](https://arxiv.org/abs/2405.07719)
 
 ```
 @article{fang2024unified,
