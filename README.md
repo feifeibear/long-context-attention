@@ -37,7 +37,7 @@ Furthermore, Ring-Attention utilizes asynchronous peer-to-peer communication, wh
 
 ### 1. Installation
 
-FlashAttention is the most important external dependency and is often the cause of errors when installing and using yunchang. Yunchang supports flash_attn 2.6.x and 2.7.x, both v3 and v2 versions. Additionally, yunchang supports using torch's SPDA for sequence parallelism without installing flash_attn.
+FlashAttention is the most important external dependency and is often the cause of errors when installing and using yunchang. Yunchang supports flash_attn 2.6.x and 2.7.x, both v3 and v2 versions. Additionally, yunchang supports using torch's SDPA for sequence parallelism without installing flash_attn.
 
 As shown in the figure below, there are three usage methods based on the flash_attn situation:
 
@@ -45,7 +45,7 @@ As shown in the figure below, there are three usage methods based on the flash_a
 
 2. For A100, L40, hardware that supports FA v2, ring_flash_attn uses FA v2.
 
-3. For hardware such as NPUs that does not support FA, use torch's SPDA. In this case, there is no need to install `flash_attn`, and you should apply `UlyssesAttention(sp_pg, attn_type=FlashAttentionImpl.TORCH)`.
+3. For hardware such as NPUs that does not support FA, use torch's SDPA. In this case, there is no need to install `flash_attn`, and you should apply `UlyssesAttention(sp_pg, attn_type=FlashAttentionImpl.TORCH)`.
 
 <p align="center">
     <img src="./media/usp_fa.png">
