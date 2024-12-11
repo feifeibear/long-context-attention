@@ -1,17 +1,18 @@
-try:
+from yunchang.globals import HAS_FLASH_ATTN, HAS_FLASH_ATTN_HOPPER
+
+if HAS_FLASH_ATTN:
     import flash_attn
     from flash_attn.flash_attn_interface import _flash_attn_forward, _flash_attn_backward
-    HAS_FLASH_ATTN = True
-except ImportError:
-    HAS_FLASH_ATTN = False
 
-try:
+
+if HAS_FLASH_ATTN_HOPPER:
     from flash_attn_interface import _flash_attn_forward as flash_attn_forward_hopper
     from flash_attn_interface import _flash_attn_backward as flash_attn_func_hopper_backward
     from flash_attn_interface import flash_attn_func as flash3_attn_func
-    HAS_FLASH_ATTN_HOPPER = True
-except ImportError:
-    HAS_FLASH_ATTN_HOPPER = False
+else:
+    flash_attn_forward_hopper = None
+    flash_attn_func_hopper_backward = None
+    flash3_attn_func = None
 
 import torch.nn.functional as F
 
@@ -34,7 +35,7 @@ def torch_attn(q, k, v, dropout_p = 0.0,
         batch_size, -1, hs, hd
     )
     hidden_states = hidden_states.to(query.dtype)
-    return hidden_states
+    return hidden_states,
 
 def flash_attn_forward(q, k, v, 
         dropout_p = 0.0, 
@@ -44,7 +45,7 @@ def flash_attn_forward(q, k, v,
         softcap=None, 
         alibi_slopes=None, 
         return_softmax=False):
-    assert HAS_FLASH_ATTN
+    assert HAS_FLASH_ATTN, "FlashAttention is not available"
     if softmax_scale is None:
         softmax_scale = q.shape[-1] ** (-0.5)
     if flash_attn.__version__ <= '2.6.3':
@@ -81,25 +82,48 @@ def flash_attn_backward(dout, q, k, v, out, softmax_lse, block_dq_buffer, block_
     if softmax_scale is None:
         softmax_scale = q.shape[-1] ** (-0.5)
     assert HAS_FLASH_ATTN
-    _flash_attn_backward(
-        dout,
-        q,
-        k,
-        v,
-        out,
-        softmax_lse,
-        block_dq_buffer,
-        block_dk_buffer,
-        block_dv_buffer,
-        dropout_p,
-        softmax_scale,
-        bwd_causal,
-        window_size,
-        softcap,
-        alibi_slopes,
-        deterministic,
-        rng_state,
-    )
+    if flash_attn.__version__ <= '2.6.3':
+        _flash_attn_backward(
+            dout,
+            q,
+            k,
+            v,
+            out,
+            softmax_lse,
+            block_dq_buffer,
+            block_dk_buffer,
+            block_dv_buffer,
+            dropout_p,
+            softmax_scale,
+            bwd_causal,
+            window_size,
+            softcap,
+            alibi_slopes,
+            deterministic,
+            rng_state,
+        )
+    else:
+        _flash_attn_backward(
+            dout,
+            q,
+            k,
+            v,
+            out,
+            softmax_lse,
+            block_dq_buffer,
+            block_dk_buffer,
+            block_dv_buffer,
+            dropout_p,
+            softmax_scale,
+            bwd_causal,
+            window_size[0],  # Pass window_size_left
+            window_size[1],  # Pass window_size_right
+            softcap,
+            alibi_slopes,
+            deterministic,
+            rng_state,
+        )
+    
 
 def flash_attn3_func_forward(q, k, v, dropout_p, softmax_scale, causal, window_size, softcap, alibi_slopes, return_softmax):
     assert HAS_FLASH_ATTN_HOPPER
@@ -115,7 +139,7 @@ def flash_attn3_func_backward(dout, q, k, v, out, softmax_lse,
                                     dropout_p, softmax_scale, 
                                     bwd_causal, window_size, softcap, alibi_slopes, deterministic, rng_state):
     # (dout, q, k, v, out, softmax_lse, dq, dk, dv, softmax_scale, causal):
-    assert HAS_FLASH_ATTN_HOPPER
+    assert HAS_FLASH_ATTN_HOPPER, f"FlashAttention Hopper is not available"
 
     flash_attn_func_hopper_backward(
         dout,

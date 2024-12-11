@@ -1,8 +1,12 @@
 import torch
-from flash_attn.flash_attn_interface import (
-    _flash_attn_varlen_forward,
-    _flash_attn_varlen_backward,
-)
+from yunchang.globals import HAS_FLASH_ATTN
+
+if HAS_FLASH_ATTN:
+    from flash_attn.flash_attn_interface import (
+        _flash_attn_varlen_forward,
+        _flash_attn_varlen_backward,
+    )
+
 from .utils import (
     RingComm,
     update_out_and_lse,
