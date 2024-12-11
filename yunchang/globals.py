@@ -78,3 +78,19 @@ def set_seq_parallel_pg(
 
     PROCESS_GROUP.ULYSSES_PG = ulyssess_pg
     PROCESS_GROUP.RING_PG = ring_pg
+
+# test if flash_attn is available
+try:
+    import flash_attn
+    from flash_attn.flash_attn_interface import _flash_attn_forward, _flash_attn_backward
+    HAS_FLASH_ATTN = True
+except ImportError:
+    HAS_FLASH_ATTN = False
+
+try:
+    from flash_attn_interface import _flash_attn_forward as flash_attn_forward_hopper
+    from flash_attn_interface import _flash_attn_backward as flash_attn_func_hopper_backward
+    from flash_attn_interface import flash_attn_func as flash3_attn_func
+    HAS_FLASH_ATTN_HOPPER = True
+except ImportError:
+    HAS_FLASH_ATTN_HOPPER = False

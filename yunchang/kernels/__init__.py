@@ -7,7 +7,11 @@ from .attention import (
     HAS_FLASH_ATTN_HOPPER
 )
 from enum import Enum, auto
-from flash_attn import flash_attn_func
+
+from yunchang.globals import HAS_FLASH_ATTN
+
+if HAS_FLASH_ATTN:
+    from flash_attn import flash_attn_func
 
 class FlashAttentionImpl(Enum):
     FA = "fa"
@@ -28,7 +32,7 @@ def select_flash_attn_impl(impl_type: FlashAttentionImpl, stage : str = "fwd-bwd
         elif stage == "bwd-only":
             return flash_attn_backward
         elif stage == "fwd-bwd":
-            print(f"flash_attn_func: {flash_attn_func} here")
+            assert HAS_FLASH_ATTN, "FlashAttention is not available"
             return flash_attn_func
         else:
             raise ValueError(f"Unknown stage: {stage}")
@@ -60,10 +64,10 @@ def select_flash_attn_impl(impl_type: FlashAttentionImpl, stage : str = "fwd-bwd
             raise ValueError(f"Unknown stage: {stage}")
 
     elif impl_type == FlashAttentionImpl.TORCH:
-        if stage == "fwd-bwd":
+        if stage == "fwd-bwd" or stage == "fwd-only":
             return torch_attn
         else:
-            raise ValueError(f"Torch fwd-only and bwd-only is not supported")
+            raise ValueError(f"FlashAttentionImpl.TORCH: bwd-only is not supported")
     else:
         raise ValueError(f"Unknown flash attention implementation: {impl_type}")
 

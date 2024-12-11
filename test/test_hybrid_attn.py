@@ -36,7 +36,7 @@ def log(msg, a, rank0_only=False):
         dist.barrier()
 
 # test it with:
-# torchrun --nproc_per_node=4  test/test_hybrid_attn_v2.py
+# torchrun --nproc_per_node=4  test/test_hybrid_attn.py
 if __name__ == "__main__":
 
     torch.random.manual_seed(0)

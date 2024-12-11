@@ -1,9 +1,13 @@
 import torch
 import torch.distributed as dist
-from flash_attn.flash_attn_interface import (
-    _flash_attn_varlen_forward,
-    _flash_attn_varlen_backward,
-)
+
+from yunchang.globals import HAS_FLASH_ATTN
+
+if HAS_FLASH_ATTN:
+    from flash_attn.flash_attn_interface import (
+        _flash_attn_varlen_forward,
+        _flash_attn_varlen_backward,
+    )
 from .utils import (
     RingComm,
     update_out_and_lse,
@@ -48,6 +52,7 @@ def ring_flash_attn_varlen_forward(
             next_v: torch.Tensor = comm.send_recv(v)
             comm.commit()
         if not causal or step <= comm.rank:
+            assert HAS_FLASH_ATTN, "FlashAttention is not available"
             block_out, _, _, _, _, block_lse, _, _ = _flash_attn_varlen_forward(
                 q,
                 k,
@@ -116,6 +121,7 @@ def ring_flash_attn_varlen_backward(
             kv_comm.commit()
         if step <= kv_comm.rank or not causal:
             bwd_causal = causal and step == 0
+            assert HAS_FLASH_ATTN, "FlashAttention is not available"
             _flash_attn_varlen_backward(
                 dout,
                 q,
