@@ -173,6 +173,7 @@ class LongContextAttentionQKVPacked(torch.nn.Module):
         self.use_sync = use_sync
         self.ring_attn_fn = RING_IMPL_QKVPACKED_DICT[ring_impl_type]
         self.attn_type = attn_type
+        
     def forward(
         self,
         qkv,
