@@ -51,7 +51,7 @@ def stripe_flash_attn_forward(
             )
             out, lse = update_out_and_lse(out, lse, block_out, block_lse)
         else:
-            fn = select_flash_attn_impl(attn_type, stage="bwd-only")
+            fn = select_flash_attn_impl(attn_type, stage="fwd-only")
             block_out, block_lse = fn(
                 q[:, 1:],
                 k[:, :-1],
