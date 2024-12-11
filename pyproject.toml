@@ -4,11 +4,11 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "yunchang"
-version = "0.4.3"
+version = "0.5.0"
 authors = [
   { name="Jiarui Fang", email="fangjiarui123@gmail.com" },
 ]
-description = "A package for long context attention"
+description = "a package for long context attention"
 readme = "README.md"
 requires-python = ">=3.7"
 classifiers = [
