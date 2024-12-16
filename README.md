@@ -126,6 +126,7 @@ local_out = usp_attn(
 ### 3.Test
 
 ```bash
+torchrun --nproc_per_node=4  --master_port=12346 test/test_hybrid_attn.py --sp_ulysses_degree 2 --seqlen 1024 --use_bwd
 torchrun --nproc_per_node 8 test/test_hybrid_qkvpacked_attn.py
 ```
 
