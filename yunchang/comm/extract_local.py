@@ -54,4 +54,5 @@ EXTRACT_FUNC_DICT = {
     "basic": basic_extract_local,
     "strip": stripe_extract_local,
     "zigzag": zigzag_extract_local,
+    "basic_pytorch": basic_extract_local,
 }

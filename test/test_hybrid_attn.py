@@ -125,7 +125,8 @@ if __name__ == "__main__":
         local_k.requires_grad = True
         local_v.requires_grad = True
 
-    usp_attn = LongContextAttention(ring_impl_type=ring_impl_type, attn_type=FlashAttentionImpl.FA)
+    usp_attn = LongContextAttention(ring_impl_type=ring_impl_type, 
+                                    attn_type=FlashAttentionImpl.TORCH)
 
     if rank == 0:
         print("#" * 30)

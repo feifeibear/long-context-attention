@@ -23,3 +23,7 @@ from .stripe_flash_attn import (
     stripe_flash_attn_kvpacked_func,
     stripe_flash_attn_qkvpacked_func,
 )
+
+from .ring_pytorch_attn import (
+    ring_pytorch_attn_func,
+)
