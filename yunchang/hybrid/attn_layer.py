@@ -108,7 +108,7 @@ class LongContextAttention(torch.nn.Module):
             value_layer = SeqAllToAll4D.apply(
                 self.ulysses_pg, value, self.scatter_idx, self.gather_idx, self.use_sync
             )
-
+            
             out = self.ring_attn_fn(
                 query_layer,
                 key_layer,

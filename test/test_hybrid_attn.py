@@ -18,6 +18,9 @@ def parse_args():
                         help='whether to test backward pass (default: False)')
     parser.add_argument('--sp_ulysses_degree', type=int, default=None,
                       help='sp_ulysses_degree (default: world_size)')
+    parser.add_argument('--ring_impl_type', type=str, default='basic',
+                      choices=['basic', 'zigzag'],
+                      help='ring implementation type (default: basic)')
     return parser.parse_args()
 
 def log(msg, a, rank0_only=False):
@@ -66,7 +69,7 @@ if __name__ == "__main__":
     nheads = 32
     d = 1280 // 32
     dropout_p = 0
-    causal = True
+    causal = False
     deterministic = False
     
     use_bwd = args.use_bwd
@@ -74,7 +77,7 @@ if __name__ == "__main__":
     assert seqlen % world_size == 0
     assert d % 8 == 0
 
-    ring_impl_type = "basic"  # You can change this to "basic" or "zigzag" if needed
+    ring_impl_type = args.ring_impl_type
 
     # Prepare inputs
     q = torch.randn(
