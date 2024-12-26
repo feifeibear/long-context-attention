@@ -37,7 +37,8 @@ Furthermore, Ring-Attention utilizes asynchronous peer-to-peer communication, wh
 
 ### 1. Installation
 
-FlashAttention is the most important external dependency and is often the cause of errors when installing and using yunchang. Yunchang supports flash_attn 2.6.x and 2.7.x, both v3 and v2 versions. Additionally, yunchang supports using torch's SDPA for sequence parallelism without installing flash_attn.
+FlashAttention is the most important external dependency and is often the cause of errors when installing and using yunchang. 
+Yunchang supports flash_attn 2.6.x and 2.7.x, both v3 and v2 versions. Additionally, yunchang supports runs without flash_attn, which is suitable for NPUs.
 
 As shown in the figure below, there are three usage methods based on the flash_attn situation:
 
@@ -45,11 +46,7 @@ As shown in the figure below, there are three usage methods based on the flash_a
 
 2. For A100, L40, hardware that supports FA v2, ring_flash_attn uses FA v2.
 
-3. For hardware such as NPUs that does not support FA, use torch's SDPA. In this case, there is no need to install `flash_attn`, and you should apply `UlyssesAttention(sp_pg, attn_type=FlashAttentionImpl.TORCH)`.
-
-<p align="center">
-    <img src="./media/usp_fa.png">
-</p>
+3. For hardware such as NPUs that does not support FA, use torch to implement attention computation. In this case, there is no need to install `flash_attn`, and you should apply `LongContextAttention(ring_impl_type="basic", attn_type=FlashAttentionImpl.TORCH)`.
 
 Option 1: pip install
 
@@ -99,8 +96,8 @@ set_seq_parallel_pg(sp_ulysses_degree, sp_ring_degree, rank, world_size)
 # attn_type could be FA, FA3, TORCH.
 longctx_attn = LongContextAttention(ring_impl_type="zigzag", attn_type=FlashAttentionImpl.FA)
 
-# if you use Ulysses, where no flash_attn is supported, you can use the following code.
-# UlyssesAttention(sp_pg, attn_type=FlashAttentionImpl.TORCH)
+# if you use NPUs, where no flash_attn is supported, you can use the following code.
+# LongContextAttention(ring_impl_type="zigzag", attn_type=FlashAttentionImpl.TORCH)
 
 # extract a local shard for the global Q, K, V.
 local_q = EXTRACT_FUNC_DICT["zigzag"](
@@ -126,7 +123,8 @@ local_out = usp_attn(
 ### 3.Test
 
 ```bash
-torchrun --nproc_per_node=4  --master_port=12346 test/test_hybrid_attn.py --sp_ulysses_degree 2 --seqlen 1024 --use_bwd
+torchrun --nproc_per_node=4 ./test/test_hybrid_attn.py --sp_ulysses_degree 2 --use_bwd --ring_impl_type "zigzag" --causal --attn_impl fa
+torchrun --nproc_per_node=4 ./test/test_hybrid_attn.py --sp_ulysses_degree 2 --use_bwd --ring_impl_type "zigzag" --causal --attn_impl torch
 torchrun --nproc_per_node 8 test/test_hybrid_qkvpacked_attn.py
 ```
 

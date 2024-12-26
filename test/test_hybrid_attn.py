@@ -21,6 +21,11 @@ def parse_args():
     parser.add_argument('--ring_impl_type', type=str, default='basic',
                       choices=['basic', 'zigzag'],
                       help='ring implementation type (default: basic)')
+    parser.add_argument('--causal', action='store_true',
+                      help='whether to use causal attention (default: False)')
+    parser.add_argument('--attn_impl', type=str, default='torch',
+                      choices=['torch', 'fa', 'fa3'],
+                      help='attention implementation type (default: torch)')
     return parser.parse_args()
 
 def log(msg, a, rank0_only=False):
@@ -69,7 +74,7 @@ if __name__ == "__main__":
     nheads = 32
     d = 1280 // 32
     dropout_p = 0
-    causal = False
+    causal = args.causal
     deterministic = False
     
     use_bwd = args.use_bwd
@@ -128,8 +133,15 @@ if __name__ == "__main__":
         local_k.requires_grad = True
         local_v.requires_grad = True
 
+    # Map argument to FlashAttentionImpl enum
+    attn_impl_map = {
+        'torch': FlashAttentionImpl.TORCH,
+        'fa': FlashAttentionImpl.FA,
+        'fa3': FlashAttentionImpl.FA3
+    }
+
     usp_attn = LongContextAttention(ring_impl_type=ring_impl_type, 
-                                    attn_type=FlashAttentionImpl.TORCH)
+                                    attn_type=attn_impl_map[args.attn_impl])
 
     if rank == 0:
         print("#" * 30)

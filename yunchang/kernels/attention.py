@@ -1,3 +1,4 @@
+from typing import Optional, Tuple
 from yunchang.globals import HAS_FLASH_ATTN, HAS_FLASH_ATTN_HOPPER
 import math
 import torch
@@ -18,6 +19,10 @@ else:
 import torch.nn.functional as F
 
 
+import torch
+aten = torch.ops.aten
+
+
 def pytorch_attn_forward(
     q: torch.Tensor,
     k: torch.Tensor,
@@ -30,54 +35,29 @@ def pytorch_attn_forward(
     alibi_slopes=None,
     return_softmax=False,
 ):
-# def pytorch_attn_forward(
-#     q: torch.Tensor,
-#     k: torch.Tensor,
-#     v: torch.Tensor,
-#     softmax_scale,
-#     causal=True,
-# ):
-    # TODO(optimize) preprocess to reuse the original code
+    """
+    q shape (bs, seqlen, nhead, hs)
+    k shape (bs, seqlen, nhead, hs)
+    v shape (bs, seqlen, nhead, hs)
+    """
     q = q.transpose(1, 2)
     k = k.transpose(1, 2)
     v = v.transpose(1, 2)
 
-    if softmax_scale is None:
-        softmax_scale = q.shape[-1] ** (-0.5)
-    batch_size, nheads, seqlen, d = q.shape
-    S = torch.matmul(q, k.transpose(-2, -1)) * softmax_scale
+    out, lse = aten._scaled_dot_product_efficient_attention(
+        q,
+        k,
+        v,
+        attn_bias=None,
+        compute_log_sumexp=True,
+        dropout_p=dropout_p,
+        is_causal=causal,
+        scale=softmax_scale,
+    )[:2]
+    out = out.transpose(1, 2)
+    lse = lse.to(q.dtype)
+    return out, lse
 
-    if causal:
-        causal_mask = torch.triu(torch.ones(seqlen, seqlen, device=q.device, dtype=torch.bool), diagonal=1)
-        causal_mask = causal_mask.unsqueeze(0).unsqueeze(1).expand(batch_size, nheads, seqlen, seqlen)
-        S.masked_fill_(causal_mask, float('-inf'))
-
-    # Online softmax
-    S_max = torch.max(S, dim=-1, keepdim=True)[0]
-    exp_S = torch.exp(S - S_max)
-    exp_sum = torch.sum(exp_S, dim=-1, keepdim=True)
-    log_sum_exp = torch.log(exp_sum) + S_max
-    P = exp_S / exp_sum
-    O = torch.matmul(P, v)
-
-    # TODO(optimize) post process to reuse the original code
-    O = O.transpose(1, 2)
-
-    lse = log_sum_exp.squeeze(-1)
-    return O, lse
-
-# def pytorch_attn_backward(
-#     dout,
-#     q,
-#     k,
-#     v,
-#     out,
-#     softmax_lse,
-#     softmax_scale = None,
-#     causal=True,
-#     *args,
-#     **kwargs,
-# ):
 def pytorch_attn_backward(
     dout,
     q,
@@ -99,7 +79,12 @@ def pytorch_attn_backward(
     *args,
     **kwargs,
 ):
-    # TODO() preprocess to reuse the original code
+    # TODO(optim): use pytorch _scaled_dot_product_efficient_attention_backward
+    # Use efficient attention backward
+    # https://github.com/pytorch/pytorch/blob/main/tools/autograd/derivatives.yaml#L2874
+    
+    # preprocess to reuse the original code
+    # from https://github.com/huggingface/picotron/blob/main/picotron/context_parallel/context_parallel.py
     q = q.transpose(1, 2)
     k = k.transpose(1, 2)
     v = v.transpose(1, 2)
