@@ -3,7 +3,8 @@ from .attention import (
     flash_attn_backward, 
     flash_attn3_func_forward, 
     flash_attn3_func_backward, 
-    torch_attn,
+    pytorch_attn_forward,
+    pytorch_attn_backward,
     HAS_FLASH_ATTN_HOPPER
 )
 from enum import Enum, auto
@@ -64,10 +65,15 @@ def select_flash_attn_impl(impl_type: FlashAttentionImpl, stage : str = "fwd-bwd
             raise ValueError(f"Unknown stage: {stage}")
 
     elif impl_type == FlashAttentionImpl.TORCH:
-        if stage == "fwd-bwd" or stage == "fwd-only":
-            return torch_attn
+        if stage == "fwd-only":
+            return pytorch_attn_forward
+        elif stage == "bwd-only":
+            return pytorch_attn_backward
+        elif stage == "fwd-bwd":
+            from yunchang.ring.ring_pytorch_attn import pytorch_attn_func
+            return pytorch_attn_func
         else:
-            raise ValueError(f"FlashAttentionImpl.TORCH: bwd-only is not supported")
+            raise ValueError(f"Unknown stage: {stage}")
     else:
         raise ValueError(f"Unknown flash attention implementation: {impl_type}")
 
