@@ -8,7 +8,7 @@ from torch import Tensor
 import torch.distributed as dist
 from .utils import RING_IMPL_DICT, RING_IMPL_QKVPACKED_DICT
 from yunchang.globals import PROCESS_GROUP
-from yunchang.kernels import FlashAttentionImpl
+from yunchang.kernels import AttnType
 
 
 class LongContextAttention(torch.nn.Module):
@@ -29,7 +29,7 @@ class LongContextAttention(torch.nn.Module):
         ring_impl_type: str = "basic",
         use_pack_qkv: bool = False,
         use_sync: bool = False,
-        attn_type: FlashAttentionImpl = FlashAttentionImpl.FA,
+        attn_type: AttnType = AttnType.FA,
     ) -> None:
 
         super(LongContextAttention, self).__init__()
@@ -157,7 +157,7 @@ class LongContextAttentionQKVPacked(torch.nn.Module):
         gather_idx: int = 1,
         ring_impl_type: str = "basic",
         use_sync: bool = False,
-        attn_type: FlashAttentionImpl = FlashAttentionImpl.FA,
+        attn_type: AttnType = AttnType.FA,
     ) -> None:
 
         super(LongContextAttentionQKVPacked, self).__init__()
