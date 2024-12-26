@@ -46,7 +46,7 @@ As shown in the figure below, there are three usage methods based on the flash_a
 
 2. For A100, L40, hardware that supports FA v2, ring_flash_attn uses FA v2.
 
-3. For hardware such as NPUs that does not support FA, use torch to implement attention computation. In this case, there is no need to install `flash_attn`, and you should apply `LongContextAttention(ring_impl_type="basic", attn_type=FlashAttentionImpl.TORCH)`.
+3. For hardware such as NPUs that does not support FA, use torch to implement attention computation. In this case, there is no need to install `flash_attn`, and you should apply `LongContextAttention(ring_impl_type="basic", attn_type=AttnType.TORCH)`.
 
 Option 1: pip install
 
@@ -85,7 +85,7 @@ from yunchang import (
     set_seq_parallel_pg,
     EXTRACT_FUNC_DICT
 )
-from yunchang.kernels import FlashAttentionImpl
+from yunchang.kernels import AttnType
 
 sp_ulysses_degree = 2
 sp_ring_degree = 4
@@ -94,10 +94,10 @@ sp_ring_degree = 4
 set_seq_parallel_pg(sp_ulysses_degree, sp_ring_degree, rank, world_size)
 
 # attn_type could be FA, FA3, TORCH.
-longctx_attn = LongContextAttention(ring_impl_type="zigzag", attn_type=FlashAttentionImpl.FA)
+longctx_attn = LongContextAttention(ring_impl_type="zigzag", attn_type=AttnType.FA)
 
 # if you use NPUs, where no flash_attn is supported, you can use the following code.
-# LongContextAttention(ring_impl_type="zigzag", attn_type=FlashAttentionImpl.TORCH)
+# LongContextAttention(ring_impl_type="zigzag", attn_type=AttnType.TORCH)
 
 # extract a local shard for the global Q, K, V.
 local_q = EXTRACT_FUNC_DICT["zigzag"](

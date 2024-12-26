@@ -6,7 +6,7 @@ from yunchang import (
     EXTRACT_FUNC_DICT, 
     RING_IMPL_QKVPACKED_DICT
 )
-from yunchang.kernels import FlashAttentionImpl
+from yunchang.kernels import AttnType
 
 
 def log(msg, a, rank0_only=False):
@@ -66,7 +66,7 @@ def test(ring_impl_type="zigzag"):
 
     set_seq_parallel_pg(sp_ulysses_degree, sp_ring_degree, rank, world_size)
 
-    longctx_attn = LongContextAttentionQKVPacked(ring_impl_type=ring_impl_type, attn_type=FlashAttentionImpl.TORCH)
+    longctx_attn = LongContextAttentionQKVPacked(ring_impl_type=ring_impl_type, attn_type=AttnType.TORCH)
 
     ## prepare input and output tensors
 

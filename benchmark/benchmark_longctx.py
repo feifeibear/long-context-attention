@@ -160,8 +160,8 @@ def benchmark(num_iter=10, forward_only=True, log=True, profile=False):
         sp_ulysses_degree, sp_ring_degree, rank, world_size, args.use_ulysses_lowdim
     )
 
-    from yunchang.kernels import FlashAttentionImpl
-    attn_type = FlashAttentionImpl.from_string(args.attn_type) 
+    from yunchang.kernels import AttnType
+    attn_type = AttnType.from_string(args.attn_type) 
     if args.use_ulysses:
         longctx_attn = UlyssesAttention(attn_type=attn_type)
     else:

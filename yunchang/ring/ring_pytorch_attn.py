@@ -5,7 +5,7 @@ import math
 import torch
 import torch.nn.functional as F
 from typing import Any, Optional, Tuple
-from yunchang.kernels import select_flash_attn_impl, FlashAttentionImpl
+from yunchang.kernels import select_flash_attn_impl, AttnType
 from .utils import RingComm, update_out_and_lse
 from yunchang.kernels.attention import pytorch_attn_forward, pytorch_attn_backward
 
@@ -22,7 +22,7 @@ def ring_pytorch_attn_func(
     deterministic=False,
     return_attn_probs=False,
     group=None,
-    attn_type: FlashAttentionImpl = FlashAttentionImpl.FA,
+    attn_type: AttnType = AttnType.FA,
 ):
     return RingAttentionFunc.apply(group, q, k, v, softmax_scale, causal)
 

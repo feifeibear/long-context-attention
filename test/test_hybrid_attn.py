@@ -6,7 +6,7 @@ from yunchang import (
 import torch
 import torch.distributed as dist
 from flash_attn import flash_attn_func
-from yunchang.kernels import FlashAttentionImpl
+from yunchang.kernels import AttnType
 from test_utils import attention_ref
 import argparse
 
@@ -133,11 +133,11 @@ if __name__ == "__main__":
         local_k.requires_grad = True
         local_v.requires_grad = True
 
-    # Map argument to FlashAttentionImpl enum
+    # Map argument to AttnType enum
     attn_impl_map = {
-        'torch': FlashAttentionImpl.TORCH,
-        'fa': FlashAttentionImpl.FA,
-        'fa3': FlashAttentionImpl.FA3
+        'torch': AttnType.TORCH,
+        'fa': AttnType.FA,
+        'fa3': AttnType.FA3
     }
 
     usp_attn = LongContextAttention(ring_impl_type=ring_impl_type, 

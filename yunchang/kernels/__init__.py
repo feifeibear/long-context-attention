@@ -14,7 +14,7 @@ from yunchang.globals import HAS_FLASH_ATTN
 if HAS_FLASH_ATTN:
     from flash_attn import flash_attn_func
 
-class FlashAttentionImpl(Enum):
+class AttnType(Enum):
     FA = "fa"
     FA3 = "fa3"
     TORCH = "torch"
@@ -26,8 +26,8 @@ class FlashAttentionImpl(Enum):
                 return member
         raise ValueError(f"'{s}' is not a valid {cls.__name__}")
 
-def select_flash_attn_impl(impl_type: FlashAttentionImpl, stage : str = "fwd-bwd"):
-    if impl_type == FlashAttentionImpl.FA:
+def select_flash_attn_impl(impl_type: AttnType, stage : str = "fwd-bwd"):
+    if impl_type == AttnType.FA:
         if stage == "fwd-only":
             return flash_attn_forward
         elif stage == "bwd-only":
@@ -38,7 +38,7 @@ def select_flash_attn_impl(impl_type: FlashAttentionImpl, stage : str = "fwd-bwd
         else:
             raise ValueError(f"Unknown stage: {stage}")
         
-    elif impl_type == FlashAttentionImpl.FA3:
+    elif impl_type == AttnType.FA3:
         if stage == "fwd-only":
             return flash_attn3_func_forward
         elif stage == "bwd-only":
@@ -64,7 +64,7 @@ def select_flash_attn_impl(impl_type: FlashAttentionImpl, stage : str = "fwd-bwd
         else:
             raise ValueError(f"Unknown stage: {stage}")
 
-    elif impl_type == FlashAttentionImpl.TORCH:
+    elif impl_type == AttnType.TORCH:
         if stage == "fwd-only":
             return pytorch_attn_forward
         elif stage == "bwd-only":
@@ -77,4 +77,4 @@ def select_flash_attn_impl(impl_type: FlashAttentionImpl, stage : str = "fwd-bwd
     else:
         raise ValueError(f"Unknown flash attention implementation: {impl_type}")
 
-__all__ = ["flash_attn_forward", "flash_attn_backward", "flash_attn3_func_forward", "flash_attn3_func_forward", "FlashAttentionImpl"]
+__all__ = ["flash_attn_forward", "flash_attn_backward", "flash_attn3_func_forward", "flash_attn3_func_forward", "AttnType"]
