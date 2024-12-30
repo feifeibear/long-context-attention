@@ -54,7 +54,7 @@ def test(ring_impl_type="zigzag"):
     nheads = 8
     d = 32
     dropout_p = 0.0
-    causal = False
+    causal = True
     deterministic = False
 
     assert seqlen % world_size == 0
