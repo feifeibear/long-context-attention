@@ -79,51 +79,11 @@ def pytorch_attn_backward(
     *args,
     **kwargs,
 ):
+    raise RuntimeError("Not implemented backward for AttnType.TORCH")
     # TODO(optim): use pytorch _scaled_dot_product_efficient_attention_backward
     # Use efficient attention backward
     # https://github.com/pytorch/pytorch/blob/main/tools/autograd/derivatives.yaml#L2874
-    
-    # preprocess to reuse the original code
-    # from https://github.com/huggingface/picotron/blob/main/picotron/context_parallel/context_parallel.py
-    q = q.transpose(1, 2)
-    k = k.transpose(1, 2)
-    v = v.transpose(1, 2)
-    out = out.transpose(1, 2)
-    dout = dout.transpose(1, 2)
 
-    batch_size, nheads, seqlen, d = q.shape
-    if softmax_scale is None:
-        softmax_scale = q.shape[-1] ** (-0.5)
-    
-    # Recreate S and P from log_sum_exp
-    S = torch.matmul(q, k.transpose(-2, -1)) * softmax_scale
-    if bwd_causal:
-        causal_mask = torch.triu(torch.ones(seqlen, seqlen, device=q.device, dtype=torch.bool), diagonal=1)
-        S = S.masked_fill(causal_mask.unsqueeze(0).unsqueeze(1), float('-inf'))
-
-    P = torch.exp(S - softmax_lse.unsqueeze(-1))
-    # Step 1: Compute dV
-    dV = torch.matmul(P.transpose(-2, -1), dout)
-    # Step 2: Compute dP
-    dP = torch.matmul(dout, v.transpose(-2, -1))
-    # Step 3: Compute D
-    D = torch.sum(dout * out, dim=-1, keepdim=True)
-    # Step 4: Compute dS
-    dS = P * (dP - D)
-    # Apply causal mask to dS if is_causal is True
-    if bwd_causal:
-        dS = dS.masked_fill(causal_mask.unsqueeze(0).unsqueeze(1), 0)
-    # Step 5: Compute dQ
-    dQ = torch.matmul(dS, k) * softmax_scale
-    # Step 6: Compute dK
-    dK = torch.matmul(dS.transpose(-2, -1), q) * softmax_scale
-
-    # TODO() post process to reuse origina; code
-    dQ = dQ.transpose(1, 2)
-    dK = dK.transpose(1, 2)
-    dV = dV.transpose(1, 2)
-
-    return dQ, dK, dV
 
 def flash_attn_forward(q, k, v, 
         dropout_p = 0.0, 

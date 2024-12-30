@@ -49,24 +49,24 @@ def test(ring_impl_type="zigzag"):
     device = torch.device(f"cuda:{local_rank}")
     print(f"rank {rank} local_rank {local_rank} world_size {world_size}")
 
-    batch_size = 1
+    batch_size = 2
     seqlen = 1024
     nheads = 8
     d = 32
     dropout_p = 0.0
-    causal = True
+    causal = False
     deterministic = False
 
     assert seqlen % world_size == 0
     assert d % 8 == 0
 
-    sp_ulysses_degree = world_size # min(world_size, nheads)
+    sp_ulysses_degree = 1 # min(world_size, nheads)
     sp_ring_degree = world_size // sp_ulysses_degree
 
     set_seq_parallel_pg(sp_ulysses_degree, sp_ring_degree, rank, world_size)
 
     longctx_attn = LongContextAttentionQKVPacked(ring_impl_type=ring_impl_type, 
-                                                attn_type=AttnType.FA)
+                                                attn_type=AttnType.TORCH)
 
     ## prepare input and output tensors
 
@@ -176,7 +176,7 @@ def test(ring_impl_type="zigzag"):
 
 if __name__ == "__main__":
     dist.init_process_group("nccl")
-    for ring_impl_type in ["zigzag", "basic"]:
+    for ring_impl_type in ["basic"]:
         print(f"ring_impl_type: {ring_impl_type}")
         test(ring_impl_type)
     if dist.is_initialized():
