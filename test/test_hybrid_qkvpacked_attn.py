@@ -66,7 +66,7 @@ def test(ring_impl_type="zigzag"):
     set_seq_parallel_pg(sp_ulysses_degree, sp_ring_degree, rank, world_size)
 
     longctx_attn = LongContextAttentionQKVPacked(ring_impl_type=ring_impl_type, 
-                                                attn_type=AttnType.TORCH)
+                                                attn_type=AttnType.FA)
 
     ## prepare input and output tensors
 
@@ -176,7 +176,7 @@ def test(ring_impl_type="zigzag"):
 
 if __name__ == "__main__":
     dist.init_process_group("nccl")
-    for ring_impl_type in ["basic"]:
+    for ring_impl_type in ["basic", "zigzag"]:
         print(f"ring_impl_type: {ring_impl_type}")
         test(ring_impl_type)
     if dist.is_initialized():
