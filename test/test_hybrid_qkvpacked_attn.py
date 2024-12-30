@@ -41,7 +41,6 @@ def get_local_rank():
     return local_rank
 
 def test(ring_impl_type="zigzag"):
-    ring_fn = RING_IMPL_QKVPACKED_DICT[ring_impl_type]
 
     rank = dist.get_rank()
     local_rank = get_local_rank()
@@ -51,7 +50,7 @@ def test(ring_impl_type="zigzag"):
     print(f"rank {rank} local_rank {local_rank} world_size {world_size}")
 
     batch_size = 2
-    seqlen = 1024 
+    seqlen = 1024
     nheads = 8
     d = 32
     dropout_p = 0.0
@@ -61,12 +60,13 @@ def test(ring_impl_type="zigzag"):
     assert seqlen % world_size == 0
     assert d % 8 == 0
 
-    sp_ulysses_degree = world_size # min(world_size, nheads)
+    sp_ulysses_degree = 2 # min(world_size, nheads)
     sp_ring_degree = world_size // sp_ulysses_degree
 
     set_seq_parallel_pg(sp_ulysses_degree, sp_ring_degree, rank, world_size)
 
-    longctx_attn = LongContextAttentionQKVPacked(ring_impl_type=ring_impl_type, attn_type=AttnType.TORCH)
+    longctx_attn = LongContextAttentionQKVPacked(ring_impl_type=ring_impl_type, 
+                                                attn_type=AttnType.FA)
 
     ## prepare input and output tensors
 
@@ -119,8 +119,6 @@ def test(ring_impl_type="zigzag"):
         deterministic=deterministic,
         return_attn_probs=True,
     )
-
-    return
 
     from flash_attn import flash_attn_qkvpacked_func
     # local_out = out.chunk(world_size, dim=1)[rank]
@@ -178,7 +176,7 @@ def test(ring_impl_type="zigzag"):
 
 if __name__ == "__main__":
     dist.init_process_group("nccl")
-    for ring_impl_type in ["strip", "basic", "zigzag"]:
+    for ring_impl_type in ["basic", "zigzag"]:
         print(f"ring_impl_type: {ring_impl_type}")
         test(ring_impl_type)
     if dist.is_initialized():

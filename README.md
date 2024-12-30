@@ -46,7 +46,7 @@ As shown in the figure below, there are three usage methods based on the flash_a
 
 2. For A100, L40, hardware that supports FA v2, ring_flash_attn uses FA v2.
 
-3. For hardware such as NPUs that does not support FA, use torch to implement attention computation. In this case, there is no need to install `flash_attn`, and you should apply `LongContextAttention(ring_impl_type="basic", attn_type=AttnType.TORCH)`.
+3. For hardware such as NPUs that does not support FA, use torch to implement attention computation. In this case, there is no need to install `flash_attn`, and you should apply `LongContextAttention(ring_impl_type="basic", attn_type=AttnType.TORCH)`. *Note: the backward pass is not supported for AttnType.TORCH.*
 
 Option 1: pip install
 
@@ -123,8 +123,8 @@ local_out = usp_attn(
 ### 3.Test
 
 ```bash
-torchrun --nproc_per_node=4 ./test/test_hybrid_attn.py --sp_ulysses_degree 2 --use_bwd --ring_impl_type "zigzag" --causal --attn_impl fa
-torchrun --nproc_per_node=4 ./test/test_hybrid_attn.py --sp_ulysses_degree 2 --use_bwd --ring_impl_type "zigzag" --causal --attn_impl torch
+torchrun --nproc_per_node=4 ./test/test_hybrid_attn.py --sp_ulysses_degree 2 --ring_impl_type "zigzag" --causal --attn_impl fa --use_bwd
+torchrun --nproc_per_node=4 ./test/test_hybrid_attn.py --sp_ulysses_degree 2 --ring_impl_type "zigzag" --causal --attn_impl torch
 torchrun --nproc_per_node 8 test/test_hybrid_qkvpacked_attn.py
 ```
 
