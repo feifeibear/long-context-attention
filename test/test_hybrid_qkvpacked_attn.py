@@ -60,7 +60,7 @@ def test(ring_impl_type="zigzag"):
     assert seqlen % world_size == 0
     assert d % 8 == 0
 
-    sp_ulysses_degree = 1 # min(world_size, nheads)
+    sp_ulysses_degree = 2 # min(world_size, nheads)
     sp_ring_degree = world_size // sp_ulysses_degree
 
     set_seq_parallel_pg(sp_ulysses_degree, sp_ring_degree, rank, world_size)
