@@ -53,7 +53,6 @@ class RingAttentionFunc(torch.autograd.Function):
                 block_out, block_lse  = pytorch_attn_forward(
                     q, k, v, softmax_scale = sm_scale, causal = is_causal and step == 0
                 )
-                print(f"block_out {block_out.shape} block_lse {block_lse.shape}")
                 out, lse = update_out_and_lse(out, lse, block_out, block_lse)
                 
             if step + 1 != comm.world_size:
