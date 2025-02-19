@@ -34,7 +34,9 @@ def pytorch_attn_forward(
     softcap=None,
     alibi_slopes=None,
     return_softmax=False,
+    op_type="flash",
 ):
+    assert op_type in ["flash", "efficient"], f"Invalid op_type: {op_type}"
     """
     q shape (bs, seqlen, nhead, hs)
     k shape (bs, seqlen, nhead, hs)
@@ -44,16 +46,29 @@ def pytorch_attn_forward(
     k = k.transpose(1, 2)
     v = v.transpose(1, 2)
 
-    out, lse = aten._scaled_dot_product_efficient_attention(
-        q,
-        k,
-        v,
-        attn_bias=None,
-        compute_log_sumexp=True,
-        dropout_p=dropout_p,
-        is_causal=causal,
-        scale=softmax_scale,
-    )[:2]
+    if op_type == "flash":
+        out, lse = aten._scaled_dot_product_flash_attention(
+            q,
+            k,
+            v,
+            dropout_p=dropout_p,
+            is_causal=causal,
+            scale=softmax_scale,
+        )[:2]
+    elif op_type == "efficient":
+        out, lse = aten._scaled_dot_product_efficient_attention(
+            q,
+            k,
+            v,
+            attn_bias=None,
+            compute_log_sumexp=True,
+            dropout_p=dropout_p,
+            is_causal=causal,
+            scale=softmax_scale,
+        )[:2]
+    else:
+        raise ValueError(f"Invalid op_type: {op_type}")
+    
     out = out.transpose(1, 2)
     lse = lse.to(q.dtype)
     return out, lse
