@@ -5,7 +5,10 @@ from yunchang import (
 )
 import torch
 import torch.distributed as dist
-# from flash_attn import flash_attn_func
+try:
+    from flash_attn import flash_attn_func
+except ImportError:
+    raise RuntimeError("flash_attn is necessary for this test!")
 from yunchang.kernels import AttnType
 from test_utils import attention_ref
 import argparse
