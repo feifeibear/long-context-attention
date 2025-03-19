@@ -86,14 +86,10 @@ def select_flash_attn_impl(impl_type: AttnType, stage : str = "fwd-bwd"):
             raise ImportError("SageAttention is not available!")
         
         if stage == "fwd-only":
-            def wrapped_sageattn_qk_int8_pv_fp16_cuda(*args, **kwargs):
-                result = sageattention.sageattn_qk_int8_pv_fp16_cuda(*args, **kwargs)
-                # Transpose the second item in the result
-                return result[0], result[1].transpose(1, 2), *result[2:]
-
             return partial(
-                wrapped_sageattn_qk_int8_pv_fp16_cuda, 
+                sageattention.sageattn_qk_int8_pv_fp16_cuda, 
                 pv_accum_dtype="fp32",
+                tensor_layout="NHD",
                 return_lse=True,
             )
         else:
@@ -103,14 +99,10 @@ def select_flash_attn_impl(impl_type: AttnType, stage : str = "fwd-bwd"):
         if not HAS_SAGE_ATTENTION:
             raise ImportError("SageAttention is not available!")
         if stage == "fwd-only":
-            def wrapped_sageattn_qk_int8_pv_fp8_cuda(*args, **kwargs):
-                result = sageattention.sageattn_qk_int8_pv_fp8_cuda(*args, **kwargs)
-                # Transpose the second item in the result
-                return result[0], result[1].transpose(1, 2), *result[2:]
-
             return partial(
-                wrapped_sageattn_qk_int8_pv_fp8_cuda,
+                sageattention.sageattn_qk_int8_pv_fp8_cuda,
                 pv_accum_dtype="fp32+fp32",
+                tensor_layout="NHD",
                 return_lse=True,
             )
         else:
