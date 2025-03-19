@@ -94,3 +94,14 @@ try:
     HAS_FLASH_ATTN_HOPPER = True
 except ImportError:
     HAS_FLASH_ATTN_HOPPER = False
+
+try:
+    import sageattention
+    HAS_SAGE_ATTENTION = True
+except ImportError:
+    HAS_SAGE_ATTENTION = False
+
+
+print(f"HAS_FLASH_ATTN: {HAS_FLASH_ATTN}")
+print(f"HAS_FLASH_ATTN_HOPPER: {HAS_FLASH_ATTN_HOPPER}")
+print(f"HAS_SAGE_ATTENTION: {HAS_SAGE_ATTENTION}")
