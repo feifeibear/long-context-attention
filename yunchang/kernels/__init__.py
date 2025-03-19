@@ -1,3 +1,4 @@
+from functools import partial
 from .attention import (
     flash_attn_forward, 
     flash_attn_backward, 
@@ -18,6 +19,8 @@ class AttnType(Enum):
     FA = "fa"
     FA3 = "fa3"
     TORCH = "torch"
+    SAGE_FP16 = "sage_fp16"
+    SAGE_FP8 = "sage_fp8"
 
     @classmethod
     def from_string(cls, s: str):
@@ -74,6 +77,33 @@ def select_flash_attn_impl(impl_type: AttnType, stage : str = "fwd-bwd"):
             return pytorch_attn_func
         else:
             raise ValueError(f"Unknown stage: {stage}")
+    
+    elif impl_type == AttnType.SAGE_FP16:
+        try:
+            import sageattention
+        except ImportError:
+            raise ImportError("SageAttention is not available!")
+        
+        if stage == "fwd-only":
+            return partial(
+                sageattention.sageattn_qk_int8_pv_fp16_cuda, 
+                pv_accum_dtype="fp32",
+                return_lse=True,
+            )
+        else:
+            raise ValueError(f"Unknown/Unsupported stage: {stage}")
+
+    elif impl_type == AttnType.SAGE_FP8:
+        if stage == "fwd-only":
+            return partial(
+                sageattention.sageattn_qk_int8_pv_fp8_cuda,
+                pv_accum_dtype="fp32+fp32",
+                return_lse=True,
+            )
+        else:
+            raise ValueError(f"Unknown/Unsupported stage: {stage}")
+
+    
     else:
         raise ValueError(f"Unknown flash attention implementation: {impl_type}")
 
