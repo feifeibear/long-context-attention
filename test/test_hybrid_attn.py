@@ -5,7 +5,7 @@ from yunchang import (
 )
 import torch
 import torch.distributed as dist
-from flash_attn import flash_attn_func
+# from flash_attn import flash_attn_func
 from yunchang.kernels import AttnType
 from test_utils import attention_ref
 import argparse
@@ -24,7 +24,7 @@ def parse_args():
     parser.add_argument('--causal', action='store_true',
                       help='whether to use causal attention (default: False)')
     parser.add_argument('--attn_impl', type=str, default='torch',
-                      choices=['torch', 'fa', 'fa3'],
+                      choices=['torch', 'fa', 'fa3', 'sage_fp16', 'sage_fp8'],
                       help='attention implementation type (default: torch)')
     return parser.parse_args()
 
@@ -137,7 +137,9 @@ if __name__ == "__main__":
     attn_impl_map = {
         'torch': AttnType.TORCH,
         'fa': AttnType.FA,
-        'fa3': AttnType.FA3
+        'fa3': AttnType.FA3,
+        'sage_fp16': AttnType.SAGE_FP16,
+        'sage_fp8': AttnType.SAGE_FP8
     }
 
     usp_attn = LongContextAttention(ring_impl_type=ring_impl_type, 
