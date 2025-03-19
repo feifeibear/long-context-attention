@@ -1,7 +1,7 @@
-# Copyright (c) Microsoft Corporation.
+# Copyright (c) Microsoft Corporation and Jiarui Fang
 # SPDX-License-Identifier: Apache-2.0
 
-# DeepSpeed Team
+
 
 import torch
 

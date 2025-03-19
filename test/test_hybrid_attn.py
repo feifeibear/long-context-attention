@@ -1,5 +1,4 @@
 from yunchang import (
-    AsyncLongContextAttention,
     LongContextAttention,
     set_seq_parallel_pg,
     EXTRACT_FUNC_DICT
@@ -7,8 +6,27 @@ from yunchang import (
 import torch
 import torch.distributed as dist
 from flash_attn import flash_attn_func
-from yunchang.kernels import FlashAttentionImpl
+from yunchang.kernels import AttnType
 from test_utils import attention_ref
+import argparse
+
+def parse_args():
+    parser = argparse.ArgumentParser(description='Test hybrid attention with configurable sequence length')
+    parser.add_argument('--seqlen', type=int, default=1024,
+                      help='sequence length (default: 1024)')
+    parser.add_argument('--use_bwd', action='store_true',
+                        help='whether to test backward pass (default: False)')
+    parser.add_argument('--sp_ulysses_degree', type=int, default=None,
+                      help='sp_ulysses_degree (default: world_size)')
+    parser.add_argument('--ring_impl_type', type=str, default='basic',
+                      choices=['basic', 'zigzag'],
+                      help='ring implementation type (default: basic)')
+    parser.add_argument('--causal', action='store_true',
+                      help='whether to use causal attention (default: False)')
+    parser.add_argument('--attn_impl', type=str, default='torch',
+                      choices=['torch', 'fa', 'fa3'],
+                      help='attention implementation type (default: torch)')
+    return parser.parse_args()
 
 def log(msg, a, rank0_only=False):
     world_size = dist.get_world_size()
@@ -36,43 +54,45 @@ def log(msg, a, rank0_only=False):
         dist.barrier()
 
 # test it with:
-# torchrun --nproc_per_node=4  test/test_hybrid_attn_v2.py
+# torchrun --nproc_per_node=4  test/test_hybrid_attn.py
 if __name__ == "__main__":
-
+    args = parse_args()
+    
     torch.random.manual_seed(0)
-    use_bwd = True
+
     dist.init_process_group("nccl")
 
     rank = dist.get_rank()
     world_size = dist.get_world_size()
 
-    assert world_size == 4, f"torchrun --nproc_per_node=4  test/test_hybrid_attn.py"
     # Inference mainly uses fp16; ROCM flash attention with bf16 precision is slightly larger, will be fixed soon 
     dtype = torch.bfloat16
     device = torch.device(f"cuda:{rank}")
 
-    batch_size = 2
-    seqlen = 1024
-    nheads = 4
-    d = 128
+    batch_size = 1
+    seqlen = args.seqlen
+    nheads = 32
+    d = 1280 // 32
     dropout_p = 0
-    causal = True
+    causal = args.causal
     deterministic = False
+    
+    use_bwd = args.use_bwd
 
     assert seqlen % world_size == 0
     assert d % 8 == 0
 
-    ring_impl_type = "basic"  # You can change this to "basic" or "zigzag" if needed
+    ring_impl_type = args.ring_impl_type
 
     # Prepare inputs
     q = torch.randn(
-        batch_size, seqlen, nheads, d, device=device, dtype=dtype, requires_grad=True
+        batch_size, seqlen, nheads, d, device=device, dtype=dtype, requires_grad=True if use_bwd else False
     )
     k = torch.randn(
-        batch_size, seqlen, nheads, d, device=device, dtype=dtype, requires_grad=True
+        batch_size, seqlen, nheads, d, device=device, dtype=dtype, requires_grad=True if use_bwd else False 
     )
     v = torch.randn(
-        batch_size, seqlen, nheads, d, device=device, dtype=dtype, requires_grad=True
+        batch_size, seqlen, nheads, d, device=device, dtype=dtype, requires_grad=True if use_bwd else False
     )
     dout = torch.randn(batch_size, seqlen, nheads, d, device=device, dtype=dtype)
 
@@ -84,7 +104,7 @@ if __name__ == "__main__":
     # prepare process group for hybrid sequence parallelism
     use_ring_low_dim = True
 
-    sp_ulysses_degree = 2
+    sp_ulysses_degree = args.sp_ulysses_degree if args.sp_ulysses_degree is not None else world_size
     sp_ring_degree = world_size // sp_ulysses_degree
 
     print(
@@ -97,18 +117,31 @@ if __name__ == "__main__":
     local_q = EXTRACT_FUNC_DICT[ring_impl_type](
         q, rank, world_size=world_size, rd=sp_ring_degree, ud=sp_ulysses_degree
     ).detach().clone()
-    local_q.requires_grad = True
+
 
     local_k = EXTRACT_FUNC_DICT[ring_impl_type](
         k, rank, world_size=world_size, rd=sp_ring_degree, ud=sp_ulysses_degree
     ).detach().clone()
-    local_k.requires_grad = True
+
 
     local_v = EXTRACT_FUNC_DICT[ring_impl_type](
         v, rank, world_size=world_size, rd=sp_ring_degree, ud=sp_ulysses_degree
     ).detach().clone()
-    local_v.requires_grad = True
-    usp_attn = LongContextAttention(ring_impl_type=ring_impl_type, attn_type=FlashAttentionImpl.FA)
+
+    if use_bwd:
+        local_q.requires_grad = True
+        local_k.requires_grad = True
+        local_v.requires_grad = True
+
+    # Map argument to AttnType enum
+    attn_impl_map = {
+        'torch': AttnType.TORCH,
+        'fa': AttnType.FA,
+        'fa3': AttnType.FA3
+    }
+
+    usp_attn = LongContextAttention(ring_impl_type=ring_impl_type, 
+                                    attn_type=attn_impl_map[args.attn_impl])
 
     if rank == 0:
         print("#" * 30)
@@ -121,6 +154,7 @@ if __name__ == "__main__":
     dropout_mask = None
 
     print(f"before usp attn forward: {local_q.shape} {local_k.shape} {local_v.shape}")
+
     # usp attn forward
     local_out = usp_attn(
         local_q,
@@ -140,11 +174,17 @@ if __name__ == "__main__":
         dout, rank, world_size=world_size, rd=sp_ring_degree, ud=sp_ulysses_degree
     ).detach().clone()
 
+    
+    max_memory = torch.cuda.max_memory_allocated(device) / (1024 * 1024)  # Convert to MB
+    print(f"[Rank#{rank}] Maximum GPU memory used: {max_memory:.2f} MB")
+    torch.cuda.reset_peak_memory_stats(device)  # Reset stats
+
+
     if rank == 0:
         print("#" * 30)
         print("# ds-ulysses backward:")
         print("#" * 30)
-
+    
     # usp attn backward
     if use_bwd:
         local_out.backward(local_dout)

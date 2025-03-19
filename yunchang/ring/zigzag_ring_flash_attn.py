@@ -1,8 +1,6 @@
 import torch
-import torch.distributed as dist
-from flash_attn.flash_attn_interface import _flash_attn_forward, _flash_attn_backward
 from .utils import RingComm, update_out_and_lse
-from yunchang.kernels import FlashAttentionImpl, select_flash_attn_impl
+from yunchang.kernels import AttnType, select_flash_attn_impl
 
 def zigzag_ring_flash_attn_forward(
     process_group,
@@ -16,7 +14,7 @@ def zigzag_ring_flash_attn_forward(
     softcap=0.0,
     alibi_slopes=None,
     deterministic=False,
-    attn_type: FlashAttentionImpl = FlashAttentionImpl.FA,
+    attn_type: AttnType = AttnType.FA,
 ):
     assert causal == True, "zigzag ring is meaningless for causal=False"
     comm = RingComm(process_group)
@@ -93,7 +91,7 @@ def zigzag_ring_flash_attn_backward(
     softcap=0.0,
     alibi_slopes=None,
     deterministic=False,
-    attn_type: FlashAttentionImpl = FlashAttentionImpl.FA,
+    attn_type: AttnType = AttnType.FA,
 ):
     assert causal == True, "zigzag ring is meaningless for causal=False"
     kv_comm = RingComm(process_group)
@@ -270,7 +268,7 @@ def zigzag_ring_flash_attn_qkvpacked_func(
     deterministic=False,
     return_attn_probs=False,
     group=None,
-    attn_type: FlashAttentionImpl = FlashAttentionImpl.FA,
+    attn_type: AttnType = AttnType.FA,
 ):
     return ZigZagRingFlashAttnFunc.apply(
         qkv[:, :, 0],
@@ -301,7 +299,7 @@ def zigzag_ring_flash_attn_kvpacked_func(
     deterministic=False,
     return_attn_probs=False,
     group=None,
-    attn_type: FlashAttentionImpl = FlashAttentionImpl.FA,
+    attn_type: AttnType = AttnType.FA,
 ):
     return ZigZagRingFlashAttnFunc.apply(
         q,
@@ -333,7 +331,7 @@ def zigzag_ring_flash_attn_func(
     deterministic=False,
     return_attn_probs=False,
     group=None,
-    attn_type: FlashAttentionImpl = FlashAttentionImpl.FA,
+    attn_type: AttnType = AttnType.FA,
 ):
     return ZigZagRingFlashAttnFunc.apply(
         q,

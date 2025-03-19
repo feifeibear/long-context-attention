@@ -92,6 +92,7 @@ class RingComm:
     ) -> torch.Tensor:
         if recv_tensor is None:
             res = torch.empty_like(to_send)
+            # print(f"send_recv: empty_like {to_send.shape}")
         else:
             res = recv_tensor
 

@@ -8,7 +8,7 @@ from torch import Tensor
 import torch.distributed as dist
 from .utils import RING_IMPL_DICT, RING_IMPL_QKVPACKED_DICT
 from yunchang.globals import PROCESS_GROUP
-from yunchang.kernels import FlashAttentionImpl
+from yunchang.kernels import AttnType
 
 
 class LongContextAttention(torch.nn.Module):
@@ -29,7 +29,7 @@ class LongContextAttention(torch.nn.Module):
         ring_impl_type: str = "basic",
         use_pack_qkv: bool = False,
         use_sync: bool = False,
-        attn_type: FlashAttentionImpl = FlashAttentionImpl.FA,
+        attn_type: AttnType = AttnType.FA,
     ) -> None:
 
         super(LongContextAttention, self).__init__()
@@ -108,7 +108,7 @@ class LongContextAttention(torch.nn.Module):
             value_layer = SeqAllToAll4D.apply(
                 self.ulysses_pg, value, self.scatter_idx, self.gather_idx, self.use_sync
             )
-
+            
             out = self.ring_attn_fn(
                 query_layer,
                 key_layer,
@@ -157,7 +157,7 @@ class LongContextAttentionQKVPacked(torch.nn.Module):
         gather_idx: int = 1,
         ring_impl_type: str = "basic",
         use_sync: bool = False,
-        attn_type: FlashAttentionImpl = FlashAttentionImpl.FA,
+        attn_type: AttnType = AttnType.FA,
     ) -> None:
 
         super(LongContextAttentionQKVPacked, self).__init__()
@@ -173,6 +173,7 @@ class LongContextAttentionQKVPacked(torch.nn.Module):
         self.use_sync = use_sync
         self.ring_attn_fn = RING_IMPL_QKVPACKED_DICT[ring_impl_type]
         self.attn_type = attn_type
+        
     def forward(
         self,
         qkv,

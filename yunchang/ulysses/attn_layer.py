@@ -7,7 +7,7 @@ import torch
 
 from typing import Any
 from torch import Tensor
-from yunchang.kernels import FlashAttentionImpl, select_flash_attn_impl
+from yunchang.kernels import AttnType, select_flash_attn_impl
 import torch.distributed as dist
 from yunchang.comm.all_to_all import SeqAllToAll4D
 
@@ -21,7 +21,7 @@ class UlyssesAttention(torch.nn.Module):
         scatter_idx (int): scatter_idx for all2all comm
         gather_idx (int): gather_idx for all2all comm
         use_sync (bool): whether to synchronize after all-to-all. This flag can save cuda memory but will slow down the speed.
-        attn_type (FlashAttentionImpl): attention type enum
+        attn_type (AttnType): attention type enum
     """
 
     def __init__(
@@ -30,7 +30,7 @@ class UlyssesAttention(torch.nn.Module):
         scatter_idx: int = 2,
         gather_idx: int = 1,
         use_sync: bool = False,
-        attn_type : FlashAttentionImpl = FlashAttentionImpl.FA,
+        attn_type : AttnType = AttnType.FA,
     ) -> None:
 
         super(UlyssesAttention, self).__init__()
@@ -43,7 +43,7 @@ class UlyssesAttention(torch.nn.Module):
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         gpu_name = torch.cuda.get_device_name(device)
         if "Turing" in gpu_name or "Tesla" in gpu_name or "T4" in gpu_name:
-            self.attn_type = FlashAttentionImpl.TORCH
+            self.attn_type = AttnType.TORCH
         self.attn_fn = select_flash_attn_impl(self.attn_type, stage="fwd-bwd")
 
     def forward(

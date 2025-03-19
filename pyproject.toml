@@ -4,21 +4,22 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "yunchang"
-version = "0.4.1"
+version = "0.6.0"
 authors = [
   { name="Jiarui Fang", email="fangjiarui123@gmail.com" },
 ]
-description = "A package for long context attention"
+description = "a package for long context attention"
 readme = "README.md"
 requires-python = ">=3.7"
 classifiers = [
     "Programming Language :: Python :: 3",
-    "License :: OSI Approved :: MIT License",
+    "License :: OSI Approved :: Apache Software License",
     "Operating System :: OS Independent",
 ]
-dependencies = [
-    "flash-attn>=2.6.0"
-]
+dependencies = []
+
+[project.optional-dependencies]
+flash = ["flash-attn>=2.6.0"]
 
 [project.urls]
 "Homepage" = "https://github.com/feifeibear/long-context-attention"

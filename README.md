@@ -34,7 +34,41 @@ Furthermore, Ring-Attention utilizes asynchronous peer-to-peer communication, wh
     <img src="./media/usp.png">
 </p>
 
-### 1. Usage
+
+### 1. Installation
+
+FlashAttention is the most important external dependency and is often the cause of errors when installing and using yunchang. 
+Yunchang supports flash_attn 2.6.x and 2.7.x, both v3 and v2 versions. Additionally, yunchang supports runs without flash_attn, which is suitable for NPUs.
+
+As shown in the figure below, there are three usage methods based on the flash_attn situation:
+
+1. For H100, B100, hardware that supports FA v3, ring_flash_attn uses FA v3.
+
+2. For A100, L40, hardware that supports FA v2, ring_flash_attn uses FA v2.
+
+3. For hardware such as NPUs that does not support FA, use torch to implement attention computation. In this case, there is no need to install `flash_attn`, and you should apply `LongContextAttention(ring_impl_type="basic", attn_type=AttnType.TORCH)`. *Note: the backward pass is not supported for AttnType.TORCH.*
+
+Option 1: pip install
+
+`pip install flash-attn`
+
+`pip install yunchang`
+
+#### Apply FlashAttention V3: Since FA V3 is beta-released, you need to install FlashAttention V3 from source code.
+
+Follow the [FlashAttention beta-release](https://github.com/Dao-AILab/flash-attention?tab=readme-ov-file#flashattention-3-beta-release) to install V3 for NVIDIA Hopper GPUs.
+
+We applied the Nov 10 2024 commit `b443207c1fc4c98e4532aad4e88cfee1d590d996`.
+
+
+Option 2: build from local.
+
+`pip install .`
+
+Install for AMD GPU: [install_amd.md](./docs/install_amd.md)
+
+
+### 2. Usage
 
 Please refer to [test/test_hybrid_qkvpacked_attn.py](./test/test_hybrid_qkvpacked_attn.py) and [test/test_hybrid_attn.py](./test/test_hybrid_attn.py) for usage.
 
@@ -51,7 +85,7 @@ from yunchang import (
     set_seq_parallel_pg,
     EXTRACT_FUNC_DICT
 )
-from yunchang.kernels import FlashAttentionImpl
+from yunchang.kernels import AttnType
 
 sp_ulysses_degree = 2
 sp_ring_degree = 4
@@ -60,14 +94,16 @@ sp_ring_degree = 4
 set_seq_parallel_pg(sp_ulysses_degree, sp_ring_degree, rank, world_size)
 
 # attn_type could be FA, FA3, TORCH.
-longctx_attn = LongContextAttention(ring_impl_type="zigzag", attn_type=FlashAttentionImpl.FA)
+longctx_attn = LongContextAttention(ring_impl_type="zigzag", attn_type=AttnType.FA)
+
+# if you use NPUs, where no flash_attn is supported, you can use the following code.
+# LongContextAttention(ring_impl_type="zigzag", attn_type=AttnType.TORCH)
 
 # extract a local shard for the global Q, K, V.
 local_q = EXTRACT_FUNC_DICT["zigzag"](
         Q, rank, world_size=world_size, rd=sp_ring_degree, ud=sp_ulysses_degree
     ).detach().clone()
 ...
-
 
 local_out = usp_attn(
         local_q,
@@ -84,32 +120,11 @@ local_out = usp_attn(
 
 ```
 
-
-### 2. Installation
-
-Option 1: pip install from pypi. 
-
-`pip install yunchang` (flash_attn >= 2.6.0)
-
-`pip install yunchang==0.2` (flash_attn < 2.6.0)
-
-#### Apply FlashAttention V3: Since FA V3 is beta-released, you need to install FlashAttention V3 from source code.
-
-Follow the [FlashAttention beta-release](https://github.com/Dao-AILab/flash-attention?tab=readme-ov-file#flashattention-3-beta-release) to install V3 for NVIDIA Hopper GPUs.
-
-We applied the Nov 10 2024 commit `b443207c1fc4c98e4532aad4e88cfee1d590d996`.
-
-
-Option 2: build from local.
-
-`pip install .`
-
-Install for AMD GPU: [install_amd.md](./docs/install_amd.md)
-
-
 ### 3.Test
 
 ```bash
+torchrun --nproc_per_node=4 ./test/test_hybrid_attn.py --sp_ulysses_degree 2 --ring_impl_type "zigzag" --causal --attn_impl fa --use_bwd
+torchrun --nproc_per_node=4 ./test/test_hybrid_attn.py --sp_ulysses_degree 2 --ring_impl_type "zigzag" --causal --attn_impl torch
 torchrun --nproc_per_node 8 test/test_hybrid_qkvpacked_attn.py
 ```
 
@@ -188,11 +203,15 @@ I am honored that this repository has contributed to the following projects:
 9. [xdit-project/mochi-xdit](https://github.com/xdit-project/mochi-xdit)
  
 ### 9. Cite Us
+
+[USP: A Unified Sequence Parallelism Approach for Long Context Generative AI](https://arxiv.org/abs/2405.07719)
+
 ```
 @article{fang2024unified,
-  title={USP: A Unified Sequence Parallelism Approach for Long Context Generative AI},
+  title={A Unified Sequence Parallelism Approach for Long Context Generative AI},
   author={Fang, Jiarui and Zhao, Shangchun},
   journal={arXiv preprint arXiv:2405.07719},
   year={2024}
 }
+
 ```
