@@ -10,10 +10,13 @@ from .attention import (
 )
 from enum import Enum, auto
 
-from yunchang.globals import HAS_FLASH_ATTN
+from yunchang.globals import HAS_FLASH_ATTN, HAS_SAGE_ATTENTION
 
 if HAS_FLASH_ATTN:
     from flash_attn import flash_attn_func
+
+if HAS_SAGE_ATTENTION:
+    import sageattention
 
 class AttnType(Enum):
     FA = "fa"
@@ -79,9 +82,7 @@ def select_flash_attn_impl(impl_type: AttnType, stage : str = "fwd-bwd"):
             raise ValueError(f"Unknown stage: {stage}")
     
     elif impl_type == AttnType.SAGE_FP16:
-        try:
-            import sageattention
-        except ImportError:
+        if not HAS_SAGE_ATTENTION:
             raise ImportError("SageAttention is not available!")
         
         if stage == "fwd-only":
@@ -94,6 +95,8 @@ def select_flash_attn_impl(impl_type: AttnType, stage : str = "fwd-bwd"):
             raise ValueError(f"Unknown/Unsupported stage: {stage}")
 
     elif impl_type == AttnType.SAGE_FP8:
+        if not HAS_SAGE_ATTENTION:
+            raise ImportError("SageAttention is not available!")
         if stage == "fwd-only":
             return partial(
                 sageattention.sageattn_qk_int8_pv_fp8_cuda,
