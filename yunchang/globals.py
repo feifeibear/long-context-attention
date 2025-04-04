@@ -100,3 +100,9 @@ try:
     HAS_SAGE_ATTENTION = True
 except ImportError:
     HAS_SAGE_ATTENTION = False
+
+try:
+    import spas_sage_attn
+    HAS_SPARSE_SAGE_ATTENTION = True
+except ImportError:
+    HAS_SPARSE_SAGE_ATTENTION = False
