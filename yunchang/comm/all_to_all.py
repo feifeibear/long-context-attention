@@ -1,19 +1,21 @@
-# Copyright (c) Microsoft Corporation and Jiarui Fang
+# Copyright (c) 2024 Jiarui Fang & Microsoft Corporation
 # SPDX-License-Identifier: Apache-2.0
-
-
 
 import torch
 
 from typing import Any, Tuple
 from torch import Tensor
-from torch.nn import Module
 
 import torch.distributed as dist
 
 
 def all_to_all_4D(
-    input: torch.tensor, scatter_idx: int = 2, gather_idx: int = 1, group=None, use_sync: bool = False
+    input: torch.tensor, 
+    scatter_idx: int = 2, 
+    gather_idx: int = 1, 
+    group=None, 
+    use_sync: bool = False,
+    use_fp8_comm: bool = True,
 ) -> torch.tensor:
     """
     all-to-all for QKV
@@ -24,6 +26,7 @@ def all_to_all_4D(
         gather_idx (int): default 2
         group : torch process group
         use_sync (bool): whether to synchronize after all-to-all
+        use_fp8_comm (bool): whether to use fp8 communication
 
     Returns:
         torch.tensor: resharded tensor (bs, seqlen/P, hc, hs)
@@ -48,12 +51,19 @@ def all_to_all_4D(
             .contiguous()
         )
 
-        output = torch.empty_like(input_t)
+        
         # https://pytorch.org/docs/stable/distributed.html#torch.distributed.all_to_all_single
         # (P, seq_len/P, bs, hc/P, hs) scatter seqlen -all2all-> (P, seq_len/P, bs, hc/P, hs) scatter head
 
         if seq_world_size > 1:
-            dist.all_to_all_single(output, input_t, group=group)
+            if use_fp8_comm:
+                output = torch.empty_like(input_t, dtype=torch.float8_e5m2)
+                input_t_fp8 = input_t.to(torch.float8_e5m2)
+                dist.all_to_all_single(output, input_t_fp8, group=group)
+                output = output.to(input_t.dtype)
+            else:
+                output = torch.empty_like(input_t)
+                dist.all_to_all_single(output, input_t, group=group)
             if use_sync:
                 torch.cuda.synchronize()
         else:
