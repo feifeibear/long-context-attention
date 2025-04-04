@@ -10,7 +10,7 @@ from .attention import (
 )
 from enum import Enum, auto
 
-from yunchang.globals import HAS_FLASH_ATTN, HAS_SAGE_ATTENTION
+from yunchang.globals import HAS_FLASH_ATTN, HAS_SAGE_ATTENTION, HAS_SPARSE_SAGE_ATTENTION
 
 if HAS_FLASH_ATTN:
     from flash_attn import flash_attn_func
@@ -18,12 +18,16 @@ if HAS_FLASH_ATTN:
 if HAS_SAGE_ATTENTION:
     import sageattention
 
+if HAS_SPARSE_SAGE_ATTENTION:
+    from spas_sage_attn.autotune import SparseAttentionMeansim
+
 class AttnType(Enum):
     FA = "fa"
     FA3 = "fa3"
     TORCH = "torch"
     SAGE_FP16 = "sage_fp16"
     SAGE_FP8 = "sage_fp8"
+    SPARSE_SAGE = "sparse_sage"
 
     @classmethod
     def from_string(cls, s: str):
@@ -108,6 +112,16 @@ def select_flash_attn_impl(impl_type: AttnType, stage : str = "fwd-bwd"):
         else:
             raise ValueError(f"Unknown/Unsupported stage: {stage}")
 
+    elif impl_type == AttnType.SPARSE_SAGE:
+        if not HAS_SPARSE_SAGE_ATTENTION:
+            raise ImportError("SparseSageAttention is not available!")
+        if stage == "fwd-only":
+            attn_impl = SparseAttentionMeansim(l1=0.07, pv_l1=0.08, tune_pv=True)
+            def fn(q, k, v, mask=None, is_causal=False, scale=None, tensor_layout="NHD", tune_mode=True, smooth_k=True, return_sparsity=False, *args, **kwargs):
+                return attn_impl(q, k, v, mask=mask, is_causal=is_causal, scale=scale, tensor_layout=tensor_layout, tune_mode=tune_mode, smooth_k=smooth_k, return_sparsity=return_sparsity), None
+            return fn
+        else:
+            raise ValueError(f"Unknown/Unsupported stage: {stage}")
     
     else:
         raise ValueError(f"Unknown flash attention implementation: {impl_type}")
