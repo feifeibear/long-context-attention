@@ -27,7 +27,7 @@ def parse_args():
     parser.add_argument('--causal', action='store_true',
                       help='whether to use causal attention (default: False)')
     parser.add_argument('--attn_impl', type=str, default='torch',
-                      choices=['torch', 'fa', 'fa3', 'sage_fp16', 'sage_fp8'],
+                      choices=['torch', 'fa', 'fa3', 'sage_fp16', 'sage_fp8', 'sparse_sage'],
                       help='attention implementation type (default: torch)')
     return parser.parse_args()
 
@@ -142,7 +142,8 @@ if __name__ == "__main__":
         'fa': AttnType.FA,
         'fa3': AttnType.FA3,
         'sage_fp16': AttnType.SAGE_FP16,
-        'sage_fp8': AttnType.SAGE_FP8
+        'sage_fp8': AttnType.SAGE_FP8,
+        'sparse_sage': AttnType.SPARSE_SAGE
     }
 
     usp_attn = LongContextAttention(ring_impl_type=ring_impl_type, 
