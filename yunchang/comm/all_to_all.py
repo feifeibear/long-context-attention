@@ -251,7 +251,7 @@ class SeqAllToAll5D(torch.autograd.Function):
         return (
             None,
             SeqAllToAll5D.apply(
-                ctx.group, *grad_output, ctx.gather_idx, ctx.scatter_idx, use_sync=ctx.use_sync
+                ctx.group, *grad_output, ctx.gather_idx, ctx.scatter_idx, ctx.use_sync
             ),
             None,
             None,
