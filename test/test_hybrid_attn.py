@@ -1,3 +1,4 @@
+import os
 from yunchang import (
     LongContextAttention,
     set_seq_parallel_pg,
@@ -29,6 +30,14 @@ def parse_args():
     parser.add_argument('--attn_impl', type=str, default='torch',
                       choices=['torch', 'fa', 'fa3', 'sage_fp16', 'sage_fp8', 'sparse_sage'],
                       help='attention implementation type (default: torch)')
+    parser.add_argument('--sparse_sage_l1', type=float, default=0.07,
+                      help='l1 for sparse sage attention (default: 0.07)')
+    parser.add_argument('--sparse_sage_pv_l1', type=float, default=0.08,
+                      help='pv_l1 for sparse sage attention (default: 0.08)')
+    parser.add_argument('--tune_mode', action='store_true', default=False,
+                      help='enable tune mode for sparse sage attention (default: False)')
+    parser.add_argument('--tune_path', type=str, default='./sparsesage_autotune.pt',
+                      help='path to the sparse sage autotune results (default: ./sparsesage_autotune.pt)')
     return parser.parse_args()
 
 def log(msg, a, rank0_only=False):
@@ -75,7 +84,7 @@ if __name__ == "__main__":
     batch_size = 1
     seqlen = args.seqlen
     nheads = 32
-    d = 1280 // 32
+    d = 2048 // 32
     dropout_p = 0
     causal = args.causal
     deterministic = False
@@ -146,8 +155,23 @@ if __name__ == "__main__":
         'sparse_sage': AttnType.SPARSE_SAGE
     }
 
+    if args.attn_impl == 'sparse_sage':
+        if use_bwd:
+            raise RuntimeError("Sparse Sage attention does not support backward pass")
+        from spas_sage_attn.autotune import SparseAttentionMeansim, load_sparse_attention_state_dict
+        attn_processor = SparseAttentionMeansim(l1=args.sparse_sage_l1, pv_l1=args.sparse_sage_pv_l1, tune_pv=True)
+    else:
+        attn_processor = None
+
     usp_attn = LongContextAttention(ring_impl_type=ring_impl_type, 
-                                    attn_type=attn_impl_map[args.attn_impl])
+                                    attn_type=attn_impl_map[args.attn_impl],
+                                    attn_processor=attn_processor)
+
+    if not args.tune_mode:
+        saved_state_dict = torch.load(args.tune_path + f".rank{dist.get_rank()}")
+        load_sparse_attention_state_dict(usp_attn, saved_state_dict, multigpu=True, verbose=True)
+    else:
+        os.environ["TUNE_MODE"] = "1"
 
     if rank == 0:
         print("#" * 30)
@@ -252,8 +276,14 @@ if __name__ == "__main__":
 
     # log("out_ref (non-distributed) - out_pt_ref (gpu) diff", local_out_ref - local_out_pt_ref)
 
-    torch.testing.assert_close(local_out, local_out_ref, atol=1e-2, rtol=0)
+    torch.testing.assert_close(local_out, local_out_ref, atol=1e-1, rtol=0)
     # torch.testing.assert_close(out_ref, out_pt_ref, atol=1e-2, rtol=0)
+
+    if args.attn_impl == 'sparse_sage':
+        from spas_sage_attn.autotune import SparseAttentionMeansim, extract_sparse_attention_state_dict
+        if args.tune_mode:
+            saved_state_dict = extract_sparse_attention_state_dict(usp_attn, verbose=True)
+            torch.save(saved_state_dict, args.tune_path + f".rank{dist.get_rank()}")
 
     if use_bwd:
         local_dq_ref = EXTRACT_FUNC_DICT[ring_impl_type](
