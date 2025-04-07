@@ -7,7 +7,7 @@ from torch import Tensor
 
 import torch.distributed as dist
 from .utils import RING_IMPL_DICT, RING_IMPL_QKVPACKED_DICT
-from yunchang.globals import PROCESS_GROUP
+from yunchang.globals import PROCESS_GROUP, HAS_SPARSE_SAGE_ATTENTION
 from yunchang.kernels import AttnType
 
 
@@ -30,6 +30,7 @@ class LongContextAttention(torch.nn.Module):
         use_pack_qkv: bool = False,
         use_sync: bool = False,
         attn_type: AttnType = AttnType.FA,
+        attn_processor: torch.nn.Module = None,
     ) -> None:
 
         super(LongContextAttention, self).__init__()
@@ -44,7 +45,14 @@ class LongContextAttention(torch.nn.Module):
         ), f"use set_seq_parallel_pg() first. Now ulysses pg {self.ulysses_pg} and ring pg {self.ring_pg}"
         self.scatter_idx = scatter_idx
         self.gather_idx = gather_idx
+        self.attn_processor = attn_processor
         self.ring_attn_fn = RING_IMPL_DICT[ring_impl_type]
+
+        if HAS_SPARSE_SAGE_ATTENTION:
+            from spas_sage_attn.autotune import SparseAttentionMeansim
+            if isinstance(attn_processor, SparseAttentionMeansim) and dist.get_world_size(self.ring_pg) > 1:
+                raise RuntimeError("Sparse Sage attention does not support ring degree > 1.")
+        
 
     def forward(
         self,
@@ -97,6 +105,7 @@ class LongContextAttention(torch.nn.Module):
                 return_attn_probs=return_attn_probs,
                 group=self.ring_pg,
                 attn_type=self.attn_type,
+                attn_processor=self.attn_processor,
             )
         else:
             query_layer = SeqAllToAll4D.apply(
@@ -123,6 +132,7 @@ class LongContextAttention(torch.nn.Module):
                 return_attn_probs=return_attn_probs,
                 group=self.ring_pg,
                 attn_type=self.attn_type,
+                attn_processor=self.attn_processor,
             )
 
         if type(out) == tuple:

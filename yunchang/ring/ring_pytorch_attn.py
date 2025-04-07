@@ -23,6 +23,7 @@ def ring_pytorch_attn_func(
     return_attn_probs=False,
     group=None,
     attn_type: AttnType = AttnType.FA,
+    attn_processor=None,
 ):
     return RingAttentionFunc.apply(group, q, k, v, softmax_scale, causal)
 

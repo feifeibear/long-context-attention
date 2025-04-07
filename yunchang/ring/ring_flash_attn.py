@@ -17,6 +17,7 @@ def ring_flash_attn_forward(
     alibi_slopes=None,
     deterministic=False,
     attn_type: AttnType = AttnType.FA,
+    attn_processor=None,
 ):
     comm = RingComm(process_group)
 
@@ -32,7 +33,7 @@ def ring_flash_attn_forward(
             comm.commit()
 
         if not causal or step <= comm.rank:
-            fn = select_flash_attn_impl(attn_type, stage="fwd-only")
+            fn = select_flash_attn_impl(attn_type, stage="fwd-only", attn_processor=attn_processor)
             block_out, block_lse = fn(
                 q,
                 k,
@@ -45,7 +46,10 @@ def ring_flash_attn_forward(
                 alibi_slopes=alibi_slopes,
                 return_softmax=True and dropout_p > 0,
             )
-            out, lse = update_out_and_lse(out, lse, block_out, block_lse)
+            if attn_type == AttnType.SPARSE_SAGE:
+                out, lse = block_out, block_lse
+            else:
+                out, lse = update_out_and_lse(out, lse, block_out, block_lse)
 
         if step + 1 != comm.world_size:
             comm.wait()
@@ -53,7 +57,8 @@ def ring_flash_attn_forward(
             v = next_v
 
     out = out.to(q.dtype)
-    lse = lse.squeeze(dim=-1).transpose(1, 2)
+    if attn_type != AttnType.SPARSE_SAGE:
+        lse = lse.squeeze(dim=-1).transpose(1, 2)
     return out, lse
 
 
@@ -159,6 +164,7 @@ class RingFlashAttnFunc(torch.autograd.Function):
         return_softmax,
         group,
         attn_type,
+        attn_processor,
     ):
         if softmax_scale is None:
             softmax_scale = q.shape[-1] ** (-0.5)
@@ -179,6 +185,7 @@ class RingFlashAttnFunc(torch.autograd.Function):
             alibi_slopes=alibi_slopes,
             deterministic=False,
             attn_type=attn_type,
+            attn_processor=attn_processor,
         )
         # this should be out_padded
         ctx.save_for_backward(q, k, v, out, softmax_lse)
@@ -191,6 +198,7 @@ class RingFlashAttnFunc(torch.autograd.Function):
         ctx.deterministic = deterministic
         ctx.group = group
         ctx.attn_type = attn_type
+        ctx.attn_processor = attn_processor
         return out if not return_softmax else (out, softmax_lse, None)
 
     @staticmethod
@@ -291,6 +299,7 @@ def ring_flash_attn_func(
     return_attn_probs=False,
     group=None,
     attn_type: AttnType = AttnType.FA,
+    attn_processor=None,
 ):
     return RingFlashAttnFunc.apply(
         q,
@@ -306,4 +315,5 @@ def ring_flash_attn_func(
         return_attn_probs,
         group,
         attn_type,
+        attn_processor,
     )

@@ -332,6 +332,7 @@ def zigzag_ring_flash_attn_func(
     return_attn_probs=False,
     group=None,
     attn_type: AttnType = AttnType.FA,
+    attn_processor=None,
 ):
     return ZigZagRingFlashAttnFunc.apply(
         q,

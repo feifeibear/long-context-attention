@@ -1,4 +1,6 @@
 from functools import partial
+
+import torch
 from .attention import (
     flash_attn_forward, 
     flash_attn_backward, 
@@ -36,7 +38,7 @@ class AttnType(Enum):
                 return member
         raise ValueError(f"'{s}' is not a valid {cls.__name__}")
 
-def select_flash_attn_impl(impl_type: AttnType, stage : str = "fwd-bwd"):
+def select_flash_attn_impl(impl_type: AttnType, stage : str = "fwd-bwd", attn_processor: torch.nn.Module = None):
     if impl_type == AttnType.FA:
         if stage == "fwd-only":
             return flash_attn_forward
@@ -115,14 +117,16 @@ def select_flash_attn_impl(impl_type: AttnType, stage : str = "fwd-bwd"):
     elif impl_type == AttnType.SPARSE_SAGE:
         if not HAS_SPARSE_SAGE_ATTENTION:
             raise ImportError("SparseSageAttention is not available!")
+        if not isinstance(attn_processor, SparseAttentionMeansim):
+            raise ImportError("SparseSageAttention is only available with a SparseAttentionProcessor class passed in")
         if stage == "fwd-only":
-            attn_impl = SparseAttentionMeansim(l1=0.07, pv_l1=0.08, tune_pv=True)
-            def fn(q, k, v, mask=None, is_causal=False, scale=None, tensor_layout="NHD", tune_mode=True, smooth_k=True, return_sparsity=False, *args, **kwargs):
-                return attn_impl(q, k, v, mask=mask, is_causal=is_causal, scale=scale, tensor_layout=tensor_layout, tune_mode=tune_mode, smooth_k=smooth_k, return_sparsity=return_sparsity), None
+            def fn(q, k, v, causal=False, softmax_scale=None, *args, **kwargs):
+                return attn_processor(q, k, v, is_causal=causal, scale=softmax_scale, tensor_layout="NHD"), None
             return fn
         else:
             raise ValueError(f"Unknown/Unsupported stage: {stage}")
-    
+    elif attn_processor is not None:
+        return attn_processor
     else:
         raise ValueError(f"Unknown flash attention implementation: {impl_type}")
 
