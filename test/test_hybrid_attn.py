@@ -34,9 +34,9 @@ def parse_args():
                       help='l1 for sparse sage attention (default: 0.07)')
     parser.add_argument('--sparse_sage_pv_l1', type=float, default=0.08,
                       help='pv_l1 for sparse sage attention (default: 0.08)')
-    parser.add_argument('--tune_mode', action='store_true', default=False,
+    parser.add_argument('--sparse_sage_tune_mode', action='store_true', default=False,
                       help='enable tune mode for sparse sage attention (default: False)')
-    parser.add_argument('--tune_path', type=str, default='./sparsesage_autotune.pt',
+    parser.add_argument('--sparse_sage_tune_path', type=str, default='./sparsesage_autotune.pt',
                       help='path to the sparse sage autotune results (default: ./sparsesage_autotune.pt)')
     return parser.parse_args()
 
@@ -167,11 +167,11 @@ if __name__ == "__main__":
                                     attn_type=attn_impl_map[args.attn_impl],
                                     attn_processor=attn_processor)
 
-    if not args.tune_mode:
-        saved_state_dict = torch.load(args.tune_path + f".rank{dist.get_rank()}")
+    if not args.sparse_sage_tune_mode:
+        saved_state_dict = torch.load(args.sparse_sage_tune_path + f".rank{dist.get_rank()}")
         load_sparse_attention_state_dict(usp_attn, saved_state_dict, multigpu=True, verbose=True)
     else:
-        os.environ["TUNE_MODE"] = "1"
+        os.environ["sparse_sage_tune_mode"] = "1"
 
     if rank == 0:
         print("#" * 30)
@@ -281,9 +281,9 @@ if __name__ == "__main__":
 
     if args.attn_impl == 'sparse_sage':
         from spas_sage_attn.autotune import SparseAttentionMeansim, extract_sparse_attention_state_dict
-        if args.tune_mode:
+        if args.sparse_sage_tune_mode:
             saved_state_dict = extract_sparse_attention_state_dict(usp_attn, verbose=True)
-            torch.save(saved_state_dict, args.tune_path + f".rank{dist.get_rank()}")
+            torch.save(saved_state_dict, args.sparse_sage_tune_path + f".rank{dist.get_rank()}")
 
     if use_bwd:
         local_dq_ref = EXTRACT_FUNC_DICT[ring_impl_type](
