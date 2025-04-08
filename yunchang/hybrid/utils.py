@@ -6,6 +6,8 @@ from yunchang.ring import (
     stripe_flash_attn_func,
     stripe_flash_attn_qkvpacked_func,
     ring_pytorch_attn_func,
+    ring_flashinfer_attn_func,
+    ring_flashinfer_attn_qkvpacked_func,
 )
 
 RING_IMPL_DICT = {
@@ -13,10 +15,12 @@ RING_IMPL_DICT = {
     "zigzag": zigzag_ring_flash_attn_func,
     "strip": stripe_flash_attn_func,
     "basic_pytorch": ring_pytorch_attn_func,
+    "basic_flashinfer": ring_flashinfer_attn_func
 }
 
 RING_IMPL_QKVPACKED_DICT = {
     "basic": ring_flash_attn_qkvpacked_func,
     "zigzag": zigzag_ring_flash_attn_qkvpacked_func,
     "strip": stripe_flash_attn_qkvpacked_func,
+    "basic_flashinfer": ring_flashinfer_attn_qkvpacked_func,
 }

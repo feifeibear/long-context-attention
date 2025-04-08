@@ -23,12 +23,12 @@ def parse_args():
     parser.add_argument('--sp_ulysses_degree', type=int, default=None,
                       help='sp_ulysses_degree (default: world_size)')
     parser.add_argument('--ring_impl_type', type=str, default='basic',
-                      choices=['basic', 'zigzag'],
+                      choices=['basic', 'zigzag', 'basic_flashinfer'],
                       help='ring implementation type (default: basic)')
     parser.add_argument('--causal', action='store_true',
                       help='whether to use causal attention (default: False)')
     parser.add_argument('--attn_impl', type=str, default='torch',
-                      choices=['torch', 'fa', 'fa3', 'sage_fp16', 'sage_fp8', 'sparse_sage'],
+                      choices=['torch', 'fa', 'fa3', 'flashinfer', 'sage_fp16', 'sage_fp8', 'sparse_sage'],
                       help='attention implementation type (default: torch)')
     parser.add_argument('--sparse_sage_l1', type=float, default=0.07,
                       help='l1 for sparse sage attention (default: 0.07)')
@@ -150,6 +150,7 @@ if __name__ == "__main__":
         'torch': AttnType.TORCH,
         'fa': AttnType.FA,
         'fa3': AttnType.FA3,
+        'flashinfer': AttnType.FLASHINFER,
         'sage_fp16': AttnType.SAGE_FP16,
         'sage_fp8': AttnType.SAGE_FP8,
         'sparse_sage': AttnType.SPARSE_SAGE
@@ -167,11 +168,12 @@ if __name__ == "__main__":
                                     attn_type=attn_impl_map[args.attn_impl],
                                     attn_processor=attn_processor)
 
-    if not args.sparse_sage_tune_mode:
-        saved_state_dict = torch.load(args.sparse_sage_tune_path + f".rank{dist.get_rank()}")
-        load_sparse_attention_state_dict(usp_attn, saved_state_dict, multigpu=True, verbose=True)
-    else:
-        os.environ["sparse_sage_tune_mode"] = "1"
+    if args.attn_impl == 'sparse_sage':
+        if not args.sparse_sage_tune_mode:
+            saved_state_dict = torch.load(args.sparse_sage_tune_path + f".rank{dist.get_rank()}")
+            load_sparse_attention_state_dict(usp_attn, saved_state_dict, multigpu=True, verbose=True)
+        else:
+            os.environ["sparse_sage_tune_mode"] = "1"
 
     if rank == 0:
         print("#" * 30)

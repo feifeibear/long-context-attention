@@ -8,6 +8,8 @@ from .attention import (
     flash_attn3_func_backward, 
     pytorch_attn_forward,
     pytorch_attn_backward,
+    flashinfer_attn_forward,
+    flashinfer_attn_backbward,
     HAS_FLASH_ATTN_HOPPER
 )
 from enum import Enum, auto
@@ -26,6 +28,7 @@ if HAS_SPARSE_SAGE_ATTENTION:
 class AttnType(Enum):
     FA = "fa"
     FA3 = "fa3"
+    FLASHINFER = "flashinfer"
     TORCH = "torch"
     SAGE_FP16 = "sage_fp16"
     SAGE_FP8 = "sage_fp8"
@@ -49,7 +52,7 @@ def select_flash_attn_impl(impl_type: AttnType, stage : str = "fwd-bwd", attn_pr
             return flash_attn_func
         else:
             raise ValueError(f"Unknown stage: {stage}")
-        
+
     elif impl_type == AttnType.FA3:
         if stage == "fwd-only":
             return flash_attn3_func_forward
@@ -71,8 +74,18 @@ def select_flash_attn_impl(impl_type: AttnType, stage : str = "fwd-bwd", attn_pr
                 assert softmax_scale is not None, f"softmax_scale is required for FA3"
                 assert dropout_p == 0.0, f"dropout_p: {dropout_p} is not supported for FA3"
                 return flash3_attn_func(q, k, v, softmax_scale=softmax_scale, causal=causal)
-        
+
             return fn
+        else:
+            raise ValueError(f"Unknown stage: {stage}")
+
+    elif impl_type == AttnType.FLASHINFER:
+        if stage == "fwd-only":
+            return flashinfer_attn_forward
+        elif stage == "bwd-only":
+            return flashinfer_attn_backbward
+        elif stage == "fwd-bwd":
+            raise ValueError("FlashInfer does not support fwd-bwd stage.")
         else:
             raise ValueError(f"Unknown stage: {stage}")
 
@@ -86,11 +99,11 @@ def select_flash_attn_impl(impl_type: AttnType, stage : str = "fwd-bwd", attn_pr
             return pytorch_attn_func
         else:
             raise ValueError(f"Unknown stage: {stage}")
-    
+
     elif impl_type == AttnType.SAGE_FP16:
         if not HAS_SAGE_ATTENTION:
             raise ImportError("SageAttention is not available!")
-        
+
         if stage == "fwd-only":
             return partial(
                 sageattention.sageattn_qk_int8_pv_fp16_cuda, 
@@ -130,4 +143,12 @@ def select_flash_attn_impl(impl_type: AttnType, stage : str = "fwd-bwd", attn_pr
     else:
         raise ValueError(f"Unknown flash attention implementation: {impl_type}")
 
-__all__ = ["flash_attn_forward", "flash_attn_backward", "flash_attn3_func_forward", "flash_attn3_func_forward", "AttnType"]
+__all__ = [
+    "flash_attn_forward",
+    "flash_attn_backward",
+    "flash_attn3_func_forward",
+    "flash_attn3_func_forward",
+    "flashinfer_attn_forward",
+    "flashinfer_attn_backbward",
+    "AttnType",
+]

@@ -1,5 +1,5 @@
 from typing import Optional, Tuple
-from yunchang.globals import HAS_FLASH_ATTN, HAS_FLASH_ATTN_HOPPER
+from yunchang.globals import HAS_FLASH_ATTN, HAS_FLASH_ATTN_HOPPER, HAS_FLASHINFER
 import math
 import torch
 if HAS_FLASH_ATTN:
@@ -15,6 +15,10 @@ else:
     flash_attn_forward_hopper = None
     flash_attn_func_hopper_backward = None
     flash3_attn_func = None
+
+if HAS_FLASHINFER:
+    from flashinfer.prefill import single_prefill_with_kv_cache
+    _LOG2_E = math.log2(math.e)
 
 import torch.nn.functional as F
 
@@ -219,3 +223,63 @@ def flash_attn3_func_backward(dout, q, k, v, out, softmax_lse,
         window_size,
         deterministic,
     )
+
+def flashinfer_attn_forward(
+    q: torch.Tensor,
+    k: torch.Tensor,
+    v: torch.Tensor,
+    dropout_p: float = 0.0,
+    softmax_scale: Optional[float] = None,
+    causal: bool = False,
+    window_size: Tuple[int, int] = (-1, -1),
+    softcap: Optional[float] = None,
+    alibi_slopes: Optional[torch.Tensor] = None,
+    return_softmax: bool = False,
+) -> Tuple[torch.Tensor, torch.Tensor]:
+    assert HAS_FLASHINFER, "FlashInfer is not available"
+    if q.ndim == 4:
+        if q.shape[0] >1:
+            raise ValueError("batch size > 1 is not supported")
+        out, lse = single_prefill_with_kv_cache(
+            q[0],
+            k[0],
+            v[0],
+            sm_scale=softmax_scale,
+            causal=causal,
+            logits_soft_cap=softcap,
+            window_left=window_size[0],
+            return_lse=True,
+        )
+        lse = lse.transpose(0, 1)
+        out, lse = out.unsqueeze(0),lse.unsqueeze(0)
+    elif q.ndim == 3:
+        out, lse = single_prefill_with_kv_cache(
+            q,
+            k,
+            v,
+            sm_scale=softmax_scale,
+            causal=causal,
+            logits_soft_cap=softcap,
+            window_left=window_size[0],
+            return_lse=True,
+        )
+        lse = lse.transpose(0, 1)
+    else:
+        raise ValueError(f"Invalid input shape: {q.shape}")
+    lse = lse / _LOG2_E
+    return out, lse
+
+
+def flashinfer_attn_backbward(
+    q: torch.Tensor,
+    k: torch.Tensor,
+    v: torch.Tensor,
+    dropout_p: float = 0.0,
+    softmax_scale: Optional[float] = None,
+    causal: bool = False,
+    window_size: Tuple[int, int] = (-1, -1),
+    softcap: Optional[float] = None,
+    alibi_slopes: Optional[torch.Tensor] = None,
+    return_softmax: bool = False,
+) -> Tuple[torch.Tensor, torch.Tensor]:
+    raise RuntimeError("Not implemented backward for AttnType.FLASHINFER")
