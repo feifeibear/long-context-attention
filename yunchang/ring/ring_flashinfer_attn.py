@@ -59,7 +59,6 @@ def ring_flashinfer_attn_forward(
             v = next_v
 
     out = out.to(q.dtype)
-    print("shape:", lse.shape)
     lse = lse.squeeze(dim=-1).transpose(1, 2)
     return out, lse
 
