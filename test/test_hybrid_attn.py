@@ -167,11 +167,12 @@ if __name__ == "__main__":
                                     attn_type=attn_impl_map[args.attn_impl],
                                     attn_processor=attn_processor)
 
-    if not args.sparse_sage_tune_mode:
-        saved_state_dict = torch.load(args.sparse_sage_tune_path + f".rank{dist.get_rank()}")
-        load_sparse_attention_state_dict(usp_attn, saved_state_dict, multigpu=True, verbose=True)
-    else:
-        os.environ["sparse_sage_tune_mode"] = "1"
+    if args.attn_impl == 'sparse_sage':
+        if not args.sparse_sage_tune_mode:
+            saved_state_dict = torch.load(args.sparse_sage_tune_path + f".rank{dist.get_rank()}")
+            load_sparse_attention_state_dict(usp_attn, saved_state_dict, multigpu=True, verbose=True)
+        else:
+            os.environ["sparse_sage_tune_mode"] = "1"
 
     if rank == 0:
         print("#" * 30)
