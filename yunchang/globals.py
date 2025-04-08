@@ -96,6 +96,12 @@ except ImportError:
     HAS_FLASH_ATTN_HOPPER = False
 
 try:
+    from flashinfer.prefill import single_prefill_with_kv_cache
+    HAS_FLASHINFER = True
+except ImportError:
+    HAS_FLASHINFER = False
+
+try:
     import sageattention
     HAS_SAGE_ATTENTION = True
 except ImportError:
