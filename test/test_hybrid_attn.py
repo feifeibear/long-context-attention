@@ -28,7 +28,7 @@ def parse_args():
     parser.add_argument('--causal', action='store_true',
                       help='whether to use causal attention (default: False)')
     parser.add_argument('--attn_impl', type=str, default='torch',
-                      choices=['torch', 'fa', 'fa3', 'flashinfer', 'sage_fp16', 'sage_fp8', 'sparse_sage'],
+                      choices=['torch', 'fa', 'fa3', 'flashinfer', 'sage_fp16', 'sage_fp16_triton', 'sage_fp8', 'sparse_sage'],
                       help='attention implementation type (default: torch)')
     parser.add_argument('--sparse_sage_l1', type=float, default=0.07,
                       help='l1 for sparse sage attention (default: 0.07)')
@@ -152,6 +152,7 @@ if __name__ == "__main__":
         'fa3': AttnType.FA3,
         'flashinfer': AttnType.FLASHINFER,
         'sage_fp16': AttnType.SAGE_FP16,
+        'sage_fp16_triton': AttnType.SAGE_FP16_TRITON,
         'sage_fp8': AttnType.SAGE_FP8,
         'sparse_sage': AttnType.SPARSE_SAGE
     }
