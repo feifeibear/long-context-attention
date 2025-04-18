@@ -40,7 +40,6 @@ class AttnType(Enum):
     SAGE_FP16_TRITON = "sage_fp16_triton"
     SAGE_FP8 = "sage_fp8"
     SAGE_FP8_SM90 = "sage_fp8_sm90"
-    SAGE_FP16_TRITON = "sage_fp16_triton"
     SPARSE_SAGE = "sparse_sage"
 
     @classmethod
