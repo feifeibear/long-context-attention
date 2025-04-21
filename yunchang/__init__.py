@@ -9,4 +9,4 @@ from .comm.extract_local import (
     EXTRACT_FUNC_DICT,
 )
 
-__version__ = "0.6.3"
+__version__ = "0.6.3.post1"
