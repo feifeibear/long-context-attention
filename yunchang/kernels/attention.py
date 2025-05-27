@@ -196,9 +196,43 @@ def flash_attn3_func_forward(q, k, v, dropout_p, softmax_scale, causal, window_s
     assert HAS_FLASH_ATTN_HOPPER
     # current signature of flash_attn_forward_hopper:
     # (q, k, v, softmax_scale, causal, window_size, descale_q=None, descale_k=None, descale_v=None, gqa_parallel=False)
-    out, q, k, v, out_padded, softmax_lse, S_dmask = flash_attn_forward_hopper(
-        q, k, v, softmax_scale, causal, window_size
-    )
+
+    out, softmax_lse, *unused = flash_attn_forward_hopper(
+                    q=q,
+                    k=k,
+                    v=v,
+                    k_new=None,
+                    v_new=None,
+                    qv=None,
+                    out=None,
+                    cu_seqlens_q=None,
+                    cu_seqlens_k=None,
+                    cu_seqlens_k_new=None,
+                    seqused_q=None,
+                    seqused_k=None,
+                    max_seqlen_q=None,
+                    max_seqlen_k=None,
+                    page_table=None,
+                    kv_batch_idx=None,
+                    leftpad_k=None,
+                    rotary_cos=None,
+                    rotary_sin=None,
+                    seqlens_rotary=None,
+                    q_descale=None,
+                    k_descale=None,
+                    v_descale=None,
+                    softmax_scale=softmax_scale,
+                    causal=False,
+                    window_size=(-1, -1),
+                    attention_chunk=0,
+                    softcap=0.0,
+                    rotary_interleaved=True,
+                    scheduler_metadata=None,
+                    num_splits=0,
+                    pack_gqa=None,
+                    sm_margin=0,
+                )
+    
     return out, softmax_lse
 
 def flash_attn3_func_backward(dout, q, k, v, out, softmax_lse, 
@@ -215,13 +249,21 @@ def flash_attn3_func_backward(dout, q, k, v, out, softmax_lse,
         v,
         out,
         softmax_lse,
-        block_dq_buffer,
-        block_dk_buffer,
-        block_dv_buffer,
-        softmax_scale,
-        bwd_causal,
-        window_size,
-        deterministic,
+        cu_seqlens_q=None,
+        cu_seqlens_k=None,
+        sequed_q=None,
+        sequed_k=None,
+        max_seqlen_q=None,
+        max_seqlen_k=None,
+        dq=block_dq_buffer,
+        dk=block_dk_buffer,
+        dv=block_dv_buffer,
+        softmax_scale=softmax_scale,
+        causal=False,
+        window_size=(-1, -1),
+        softcap=0.0,
+        deterministic=False,
+        sm_margin=0,
     )
 
 def flashinfer_attn_forward(
