@@ -1,11 +1,27 @@
-from typing import Optional, Tuple
-from yunchang.globals import HAS_FLASH_ATTN, HAS_FLASH_ATTN_HOPPER, HAS_FLASHINFER
 import math
+from typing import Optional, Tuple
+
 import torch
+from torch.ops.aten import (
+    _scaled_dot_product_flash_attention,
+    _scaled_dot_product_efficient_attention
+)
+
+# Apply Moore Threads PyTorch Patches. It will not interfere CUDA setup if you are
+# not running in Moore Threads's environment.
+try:
+    import torch_musa
+    from torch.ops.aten import _scaled_dot_product_attention_flash_musa as _scaled_dot_product_flash_attention
+    # The efficient operator hasn't been implemented yet
+    _scaled_dot_product_efficient_attention = None
+except ModuleNotFoundError:
+    pass
+
+from yunchang.globals import HAS_FLASH_ATTN, HAS_FLASH_ATTN_HOPPER, HAS_FLASHINFER
+
 if HAS_FLASH_ATTN:
     import flash_attn
     from flash_attn.flash_attn_interface import _flash_attn_forward, _flash_attn_backward
-
 
 if HAS_FLASH_ATTN_HOPPER:
     from flash_attn_interface import _flash_attn_forward as flash_attn_forward_hopper
@@ -19,13 +35,6 @@ else:
 if HAS_FLASHINFER:
     from flashinfer.prefill import single_prefill_with_kv_cache
     _LOG2_E = math.log2(math.e)
-
-import torch.nn.functional as F
-
-
-import torch
-aten = torch.ops.aten
-
 
 def pytorch_attn_forward(
     q: torch.Tensor,
@@ -51,7 +60,7 @@ def pytorch_attn_forward(
     v = v.transpose(1, 2)
 
     if op_type == "flash":
-        out, lse = aten._scaled_dot_product_flash_attention(
+        out, lse = _scaled_dot_product_flash_attention(
             q,
             k,
             v,
@@ -60,7 +69,7 @@ def pytorch_attn_forward(
             scale=softmax_scale,
         )[:2]
     elif op_type == "efficient":
-        out, lse = aten._scaled_dot_product_efficient_attention(
+        out, lse = _scaled_dot_product_efficient_attention(
             q,
             k,
             v,
