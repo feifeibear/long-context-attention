@@ -2,16 +2,14 @@ import math
 from typing import Optional, Tuple
 
 import torch
-from torch.ops.aten import (
-    _scaled_dot_product_flash_attention,
-    _scaled_dot_product_efficient_attention
-)
+_scaled_dot_product_flash_attention = torch.ops.aten._scaled_dot_product_flash_attention
+_scaled_dot_product_efficient_attention = torch.ops.aten._scaled_dot_product_efficient_attention
 
 # Apply Moore Threads PyTorch Patches. It will not interfere CUDA setup if you are
 # not running in Moore Threads's environment.
 try:
     import torch_musa
-    from torch.ops.aten import _scaled_dot_product_attention_flash_musa as _scaled_dot_product_flash_attention
+    _scaled_dot_product_flash_attention = torch.ops.aten._scaled_dot_product_attention_flash_musa
     # The efficient operator hasn't been implemented yet
     _scaled_dot_product_efficient_attention = None
 except ModuleNotFoundError:
