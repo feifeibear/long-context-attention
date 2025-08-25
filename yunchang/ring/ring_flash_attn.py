@@ -221,7 +221,7 @@ class RingFlashAttnFunc(torch.autograd.Function):
             deterministic=ctx.deterministic,
             attn_type=ctx.attn_type,
         )
-        return dq, dk, dv, None, None, None, None, None, None, None, None, None, None
+        return dq, dk, dv, None, None, None, None, None, None, None, None, None, None, None
 
 
 def ring_flash_attn_qkvpacked_func(
