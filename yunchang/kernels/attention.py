@@ -15,7 +15,7 @@ try:
 except ModuleNotFoundError:
     pass
 
-from yunchang.globals import HAS_FLASH_ATTN, HAS_FLASH_ATTN_HOPPER, HAS_FLASHINFER
+from yunchang.globals import HAS_FLASH_ATTN, HAS_FLASH_ATTN_HOPPER, HAS_FLASHINFER, HAS_AITER
 
 if HAS_FLASH_ATTN:
     import flash_attn
@@ -33,6 +33,10 @@ else:
 if HAS_FLASHINFER:
     from flashinfer.prefill import single_prefill_with_kv_cache
     _LOG2_E = math.log2(math.e)
+
+if HAS_AITER:
+    import aiter
+    from aiter.ops.mha import flash_attn_func as flash_attn_func_aiter
 
 def pytorch_attn_forward(
     q: torch.Tensor,
@@ -122,7 +126,19 @@ def flash_attn_forward(q, k, v,
     assert HAS_FLASH_ATTN, "FlashAttention is not available"
     if softmax_scale is None:
         softmax_scale = q.shape[-1] ** (-0.5)
-    if flash_attn.__version__ < '2.6.3':
+    if HAS_AITER:
+        block_out, block_lse = flash_attn_func_aiter(
+            q,
+            k,
+            v,
+            dropout_p = dropout_p,
+            softmax_scale = softmax_scale,
+            causal = causal,
+            window_size=window_size,
+            alibi_slopes = alibi_slopes,
+            return_lse=True,
+        )
+    elif flash_attn.__version__ < '2.6.3':
         block_out, _, _, _, _, block_lse, _, _ = _flash_attn_forward(
             q,
             k,

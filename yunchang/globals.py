@@ -110,6 +110,13 @@ except ImportError:
     HAS_FLASHINFER = False
 
 try:
+    import aiter
+    from aiter.ops.mha import flash_attn_func as flash_attn_func_aiter
+    HAS_AITER = True
+except ImportError:
+    HAS_AITER = False
+
+try:
     import sageattention
     HAS_SAGE_ATTENTION = True
 except ImportError:
