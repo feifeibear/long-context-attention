@@ -60,7 +60,7 @@ def pytorch_attn_forward(
     v = v.transpose(1, 2)
 
     with sdpa_kernel(SDPBackend.CUDNN_ATTENTION):
-        return torch.nn.functional.scaled_dot_product_attention(q, k, v).transpose(1,2)
+        return torch.nn.functional.scaled_dot_product_attention(q, k, v).transpose(1,2), None
 
     if op_type == "flash":
         out, lse = _scaled_dot_product_flash_attention(
