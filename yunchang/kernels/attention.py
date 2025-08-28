@@ -4,6 +4,7 @@ from typing import Optional, Tuple
 import torch
 from torch.nn.attention import sdpa_kernel, SDPBackend
 
+_scaled_dot_product_cudnn_attention = torch.ops.aten._scaled_dot_product_cudnn_attention
 _scaled_dot_product_flash_attention = torch.ops.aten._scaled_dot_product_flash_attention
 _scaled_dot_product_efficient_attention = torch.ops.aten._scaled_dot_product_efficient_attention
 
@@ -58,32 +59,39 @@ def pytorch_attn_forward(
     q = q.transpose(1, 2)
     k = k.transpose(1, 2)
     v = v.transpose(1, 2)
+    out, lse = _scaled_dot_product_cudnn_attention(
+        q,
+        k,
+        v,
+        attn_bias=None,
+        compute_log_sumexp=True,
+        dropout_p=dropout_p,
+        is_causal=causal,
+        scale=softmax_scale,
+    )[:2]
 
-    with sdpa_kernel(SDPBackend.CUDNN_ATTENTION):
-        return torch.nn.functional.scaled_dot_product_attention(q, k, v).transpose(1,2), None
-
-    if op_type == "flash":
-        out, lse = _scaled_dot_product_flash_attention(
-            q,
-            k,
-            v,
-            dropout_p=dropout_p,
-            is_causal=causal,
-            scale=softmax_scale,
-        )[:2]
-    elif op_type == "efficient":
-        out, lse = _scaled_dot_product_efficient_attention(
-            q,
-            k,
-            v,
-            attn_bias=None,
-            compute_log_sumexp=True,
-            dropout_p=dropout_p,
-            is_causal=causal,
-            scale=softmax_scale,
-        )[:2]
-    else:
-        raise ValueError(f"Invalid op_type: {op_type}")
+    # if op_type == "flash":
+    #     out, lse = _scaled_dot_product_flash_attention(
+    #         q,
+    #         k,
+    #         v,
+    #         dropout_p=dropout_p,
+    #         is_causal=causal,
+    #         scale=softmax_scale,
+    #     )[:2]
+    # elif op_type == "efficient":
+    #     out, lse = _scaled_dot_product_efficient_attention(
+    #         q,
+    #         k,
+    #         v,
+    #         attn_bias=None,
+    #         compute_log_sumexp=True,
+    #         dropout_p=dropout_p,
+    #         is_causal=causal,
+    #         scale=softmax_scale,
+    #     )[:2]
+    # else:
+    #     raise ValueError(f"Invalid op_type: {op_type}")
     
     out = out.transpose(1, 2)
     lse = lse.to(q.dtype)
