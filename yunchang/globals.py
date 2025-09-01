@@ -111,7 +111,7 @@ except ImportError:
 
 try:
     import aiter
-    from aiter.ops.mha import flash_attn_func as flash_attn_func_aiter
+    from aiter import flash_attn_func as flash_attn_func_aiter
     HAS_AITER = True
 except ImportError:
     HAS_AITER = False

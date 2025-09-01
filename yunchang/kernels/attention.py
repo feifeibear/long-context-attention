@@ -36,7 +36,7 @@ if HAS_FLASHINFER:
 
 if HAS_AITER:
     import aiter
-    from aiter.ops.mha import flash_attn_func as flash_attn_func_aiter
+    from aiter import flash_attn_func as flash_attn_func_aiter
 
 def pytorch_attn_forward(
     q: torch.Tensor,
