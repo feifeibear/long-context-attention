@@ -126,7 +126,7 @@ def flash_attn_forward(q, k, v,
     assert HAS_FLASH_ATTN, "FlashAttention is not available"
     if softmax_scale is None:
         softmax_scale = q.shape[-1] ** (-0.5)
-    elif flash_attn.__version__ < '2.6.3':
+    if flash_attn.__version__ < '2.6.3':
         block_out, _, _, _, _, block_lse, _, _ = _flash_attn_forward(
             q,
             k,
