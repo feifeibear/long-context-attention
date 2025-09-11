@@ -47,6 +47,7 @@ def parse_args():
         type=str,
         default="torch",
         choices=[
+            "aiter",
             "torch",
             "fa",
             "fa3",
@@ -225,6 +226,7 @@ if __name__ == "__main__":
 
     # Map argument to AttnType enum
     attn_impl_map = {
+        "aiter": AttnType.AITER,
         "torch": AttnType.TORCH,
         "fa": AttnType.FA,
         "fa3": AttnType.FA3,
