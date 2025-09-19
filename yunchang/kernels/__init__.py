@@ -2,6 +2,7 @@ from functools import partial
 
 import torch
 from .attention import (
+    flash_attn_forward_aiter,
     flash_attn_forward,
     flash_attn_backward,
     flash_attn3_func_forward,
@@ -15,6 +16,7 @@ from .attention import (
 from enum import Enum, auto
 
 from yunchang.globals import (
+    HAS_AITER,
     HAS_FLASH_ATTN,
     HAS_SAGE_ATTENTION,
     HAS_SPARSE_SAGE_ATTENTION,
@@ -31,6 +33,7 @@ if HAS_SPARSE_SAGE_ATTENTION:
 
 
 class AttnType(Enum):
+    AITER = "aiter"
     FA = "fa"
     FA3 = "fa3"
     FLASHINFER = "flashinfer"
@@ -53,7 +56,17 @@ class AttnType(Enum):
 def select_flash_attn_impl(
     impl_type: AttnType, stage: str = "fwd-bwd", attn_processor: torch.nn.Module = None
 ):
-    if impl_type == AttnType.FA:
+    if impl_type == AttnType.AITER:
+        if stage == "fwd-only":
+            return flash_attn_forward_aiter
+        elif stage == "bwd-only":
+            raise ValueError("Aiter does not support bwd-only stage.")
+        elif stage == "fwd-bwd":
+            raise ValueError("Aiter does not support fwd-bwd stage.")
+        else:
+            raise ValueError(f"Unknown stage: {stage}")
+
+    elif impl_type == AttnType.FA:
         if stage == "fwd-only":
             return flash_attn_forward
         elif stage == "bwd-only":

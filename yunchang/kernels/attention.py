@@ -15,7 +15,11 @@ try:
 except ModuleNotFoundError:
     pass
 
-from yunchang.globals import HAS_FLASH_ATTN, HAS_FLASH_ATTN_HOPPER, HAS_FLASHINFER
+from yunchang.globals import HAS_FLASH_ATTN, HAS_FLASH_ATTN_HOPPER, HAS_FLASHINFER, HAS_AITER
+
+if HAS_AITER:
+    import aiter
+    from aiter import flash_attn_func as flash_attn_func_aiter
 
 if HAS_FLASH_ATTN:
     import flash_attn
@@ -272,6 +276,30 @@ def flash_attn3_func_backward(dout, q, k, v, out, softmax_lse,
         deterministic=False,
         sm_margin=0,
     )
+
+def flash_attn_forward_aiter(q, k, v, 
+    dropout_p = 0.0, 
+    softmax_scale = None, 
+    causal=False, 
+    window_size=(-1, -1), 
+    softcap=None, 
+    alibi_slopes=None, 
+    return_softmax=False
+):
+    assert HAS_AITER, "Aiter is not available"
+    block_out, block_lse = flash_attn_func_aiter(
+        q,
+        k,
+        v,
+        dropout_p = dropout_p,
+        softmax_scale = softmax_scale,
+        causal = causal,
+        window_size=window_size,
+        alibi_slopes = alibi_slopes,
+        return_lse=True,
+    )
+
+    return block_out, block_lse
 
 def flashinfer_attn_forward(
     q: torch.Tensor,
