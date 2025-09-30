@@ -15,7 +15,7 @@ try:
 except ModuleNotFoundError:
     pass
 
-from yunchang.globals import HAS_FLASH_ATTN, HAS_FLASH_ATTN_HOPPER, HAS_FLASHINFER, HAS_AITER
+from yunchang.globals import HAS_FLASH_ATTN, HAS_FLASH_ATTN_HOPPER, HAS_FLASHINFER, HAS_AITER, HAS_NPU
 
 if HAS_AITER:
     import aiter
@@ -37,6 +37,9 @@ else:
 if HAS_FLASHINFER:
     from flashinfer.prefill import single_prefill_with_kv_cache
     _LOG2_E = math.log2(math.e)
+
+if HAS_NPU:
+    import torch_npu
 
 def pytorch_attn_forward(
     q: torch.Tensor,
@@ -123,49 +126,37 @@ def flash_attn_forward(q, k, v,
         softcap=None, 
         alibi_slopes=None, 
         return_softmax=False):
-    try:
-        import torch_npu
+    assert HAS_FLASH_ATTN, "FlashAttention is not available"
+    if softmax_scale is None:
         softmax_scale = q.shape[-1] ** (-0.5)
-        block_out, block_lse = torch_npu.npu_fused_infer_attention_score(q, k, v, 
-                                                    num_heads = q.shape[-2], 
-                                                    input_layout = "BSND",  
-                                                    scale = softmax_scale, 
-                                                    softmax_lse_flag = True,
-                                                    pre_tokens=65535, 
-                                                    next_tokens=65535)
-        return block_out, block_lse.squeeze(dim=-1)
-    except:
-        assert HAS_FLASH_ATTN, "FlashAttention is not available"
-        if softmax_scale is None:
-            softmax_scale = q.shape[-1] ** (-0.5)
-        if flash_attn.__version__ < '2.6.3':
-            block_out, _, _, _, _, block_lse, _, _ = _flash_attn_forward(
-                q,
-                k,
-                v,
-                dropout_p = dropout_p,
-                softmax_scale = softmax_scale,
-                causal=causal,
-                window_size=window_size,
-                softcap=softcap,
-                alibi_slopes=alibi_slopes,
-                return_softmax=return_softmax,
-            )
-        else:
-            block_out, block_lse, _, _ = _flash_attn_forward(
-                q,
-                k,
-                v,
-                dropout_p = dropout_p,
-                softmax_scale = softmax_scale,
-                causal=causal,
-                window_size_left=window_size[0],
-                window_size_right=window_size[1],
-                softcap=softcap,
-                alibi_slopes=alibi_slopes,
-                return_softmax=return_softmax,
-            )
-        return block_out, block_lse
+    if flash_attn.__version__ < '2.6.3':
+        block_out, _, _, _, _, block_lse, _, _ = _flash_attn_forward(
+            q,
+            k,
+            v,
+            dropout_p = dropout_p,
+            softmax_scale = softmax_scale,
+            causal=causal,
+            window_size=window_size,
+            softcap=softcap,
+            alibi_slopes=alibi_slopes,
+            return_softmax=return_softmax,
+        )
+    else:
+        block_out, block_lse, _, _ = _flash_attn_forward(
+            q,
+            k,
+            v,
+            dropout_p = dropout_p,
+            softmax_scale = softmax_scale,
+            causal=causal,
+            window_size_left=window_size[0],
+            window_size_right=window_size[1],
+            softcap=softcap,
+            alibi_slopes=alibi_slopes,
+            return_softmax=return_softmax,
+        )
+    return block_out, block_lse
 
 def flash_attn_backward(dout, q, k, v, out, softmax_lse, block_dq_buffer, block_dk_buffer, block_dv_buffer, dropout_p, softmax_scale, 
     bwd_causal, window_size, softcap, alibi_slopes, deterministic, rng_state):
@@ -372,3 +363,22 @@ def flashinfer_attn_backbward(
     return_softmax: bool = False,
 ) -> Tuple[torch.Tensor, torch.Tensor]:
     raise RuntimeError("Not implemented backward for AttnType.FLASHINFER")
+
+def npu_attn_forward(q, k, v, 
+        dropout_p = 0.0, 
+        softmax_scale = None, 
+        causal=False, 
+        window_size=(-1, -1), 
+        softcap=None, 
+        alibi_slopes=None, 
+        return_softmax=False):
+    assert HAS_NPU, "torch_npu is not avaliable"
+    softmax_scale = q.shape[-1] ** (-0.5)
+    block_out, block_lse = torch_npu.npu_fused_infer_attention_score(q, k, v, 
+                                                num_heads = q.shape[-2], 
+                                                input_layout = "BSND",  
+                                                scale = softmax_scale, 
+                                                softmax_lse_flag = True,
+                                                pre_tokens=65535, 
+                                                next_tokens=65535)
+    return block_out, block_lse.squeeze(dim=-1)

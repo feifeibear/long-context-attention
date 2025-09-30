@@ -128,3 +128,8 @@ try:
 except ImportError:
     HAS_SPARSE_SAGE_ATTENTION = False
 
+try:
+    import torch_npu
+    HAS_NPU = True
+except ImportError:
+    HAS_NPU = False
