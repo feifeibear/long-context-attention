@@ -123,37 +123,49 @@ def flash_attn_forward(q, k, v,
         softcap=None, 
         alibi_slopes=None, 
         return_softmax=False):
-    assert HAS_FLASH_ATTN, "FlashAttention is not available"
-    if softmax_scale is None:
+    try:
+        import torch_npu
         softmax_scale = q.shape[-1] ** (-0.5)
-    if flash_attn.__version__ < '2.6.3':
-        block_out, _, _, _, _, block_lse, _, _ = _flash_attn_forward(
-            q,
-            k,
-            v,
-            dropout_p = dropout_p,
-            softmax_scale = softmax_scale,
-            causal=causal,
-            window_size=window_size,
-            softcap=softcap,
-            alibi_slopes=alibi_slopes,
-            return_softmax=return_softmax,
-        )
-    else:
-        block_out, block_lse, _, _ = _flash_attn_forward(
-            q,
-            k,
-            v,
-            dropout_p = dropout_p,
-            softmax_scale = softmax_scale,
-            causal=causal,
-            window_size_left=window_size[0],
-            window_size_right=window_size[1],
-            softcap=softcap,
-            alibi_slopes=alibi_slopes,
-            return_softmax=return_softmax,
-        )
-    return block_out, block_lse
+        block_out, block_lse = torch_npu.npu_fused_infer_attention_score(q, k, v, 
+                                                    num_heads = q.shape[-2], 
+                                                    input_layout = "BSND",  
+                                                    scale = softmax_scale, 
+                                                    softmax_lse_flag = True,
+                                                    pre_tokens=65535, 
+                                                    next_tokens=65535)
+        return block_out, block_lse.squeeze(dim=-1)
+    except:
+        assert HAS_FLASH_ATTN, "FlashAttention is not available"
+        if softmax_scale is None:
+            softmax_scale = q.shape[-1] ** (-0.5)
+        if flash_attn.__version__ < '2.6.3':
+            block_out, _, _, _, _, block_lse, _, _ = _flash_attn_forward(
+                q,
+                k,
+                v,
+                dropout_p = dropout_p,
+                softmax_scale = softmax_scale,
+                causal=causal,
+                window_size=window_size,
+                softcap=softcap,
+                alibi_slopes=alibi_slopes,
+                return_softmax=return_softmax,
+            )
+        else:
+            block_out, block_lse, _, _ = _flash_attn_forward(
+                q,
+                k,
+                v,
+                dropout_p = dropout_p,
+                softmax_scale = softmax_scale,
+                causal=causal,
+                window_size_left=window_size[0],
+                window_size_right=window_size[1],
+                softcap=softcap,
+                alibi_slopes=alibi_slopes,
+                return_softmax=return_softmax,
+            )
+        return block_out, block_lse
 
 def flash_attn_backward(dout, q, k, v, out, softmax_lse, block_dq_buffer, block_dk_buffer, block_dv_buffer, dropout_p, softmax_scale, 
     bwd_causal, window_size, softcap, alibi_slopes, deterministic, rng_state):
