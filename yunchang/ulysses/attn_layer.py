@@ -40,10 +40,14 @@ class UlyssesAttention(torch.nn.Module):
         self.use_sync = use_sync
         self.attn_type = attn_type
 
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        gpu_name = torch.cuda.get_device_name(device)
-        if "Turing" in gpu_name or "Tesla" in gpu_name or "T4" in gpu_name:
-            self.attn_type = AttnType.TORCH
+        try:
+            import torch_npu
+            device = torch.device("npu")
+        except:
+            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+            gpu_name = torch.cuda.get_device_name(device)
+            if "Turing" in gpu_name or "Tesla" in gpu_name or "T4" in gpu_name:
+                self.attn_type = AttnType.TORCH
         self.attn_fn = select_flash_attn_impl(self.attn_type, stage="fwd-bwd")
 
     def forward(
@@ -85,19 +89,32 @@ class UlyssesAttention(torch.nn.Module):
         if softmax_scale is None:
             softmax_scale = q.shape[-1] ** -0.5
 
-        context_layer = self.attn_fn(
-            q,
-            k,
-            v,
-            dropout_p=dropout_p,
-            softmax_scale = softmax_scale,
-            causal=causal,
-            window_size=window_size,
-            softcap=softcap,
-            alibi_slopes=alibi_slopes,
-            deterministic=deterministic,
-            return_attn_probs=return_attn_probs,
-        )
+        if self.attn_type is AttnType.NPU:
+            context_layer = self.attn_fn(
+                q,
+                k,
+                v,
+                num_heads = q.shape[-2], 
+                input_layout = "BSND",  
+                scale = softmax_scale, 
+                softmax_lse_flag = True,
+                pre_tokens=65535, 
+                next_tokens=65535,
+            )
+        else:
+            context_layer = self.attn_fn(
+                q,
+                k,
+                v,
+                dropout_p=dropout_p,
+                softmax_scale = softmax_scale,
+                causal=causal,
+                window_size=window_size,
+                softcap=softcap,
+                alibi_slopes=alibi_slopes,
+                deterministic=deterministic,
+                return_attn_probs=return_attn_probs,
+            )
 
         if isinstance(context_layer, tuple):
             context_layer = context_layer[0]

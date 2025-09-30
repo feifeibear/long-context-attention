@@ -365,18 +365,14 @@ def flashinfer_attn_backbward(
     raise RuntimeError("Not implemented backward for AttnType.FLASHINFER")
 
 def npu_attn_forward(q, k, v, 
-        dropout_p = 0.0, 
         softmax_scale = None, 
-        causal=False, 
-        window_size=(-1, -1), 
-        softcap=None, 
-        alibi_slopes=None, 
-        return_softmax=False):
+        layout = "BSND"
+        ):
     assert HAS_NPU, "torch_npu is not avaliable"
     softmax_scale = q.shape[-1] ** (-0.5)
     block_out, block_lse = torch_npu.npu_fused_infer_attention_score(q, k, v, 
                                                 num_heads = q.shape[-2], 
-                                                input_layout = "BSND",  
+                                                input_layout = layout,  
                                                 scale = softmax_scale, 
                                                 softmax_lse_flag = True,
                                                 pre_tokens=65535, 
