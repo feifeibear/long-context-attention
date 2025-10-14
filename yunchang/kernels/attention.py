@@ -15,7 +15,7 @@ try:
 except ModuleNotFoundError:
     pass
 
-from yunchang.globals import HAS_FLASH_ATTN, HAS_FLASH_ATTN_HOPPER, HAS_FLASHINFER, HAS_AITER
+from yunchang.globals import HAS_FLASH_ATTN, HAS_FLASH_ATTN_HOPPER, HAS_FLASHINFER, HAS_AITER, HAS_NPU
 
 if HAS_AITER:
     import aiter
@@ -37,6 +37,9 @@ else:
 if HAS_FLASHINFER:
     from flashinfer.prefill import single_prefill_with_kv_cache
     _LOG2_E = math.log2(math.e)
+
+if HAS_NPU:
+    import torch_npu
 
 def pytorch_attn_forward(
     q: torch.Tensor,
@@ -360,3 +363,18 @@ def flashinfer_attn_backbward(
     return_softmax: bool = False,
 ) -> Tuple[torch.Tensor, torch.Tensor]:
     raise RuntimeError("Not implemented backward for AttnType.FLASHINFER")
+
+def npu_attn_forward(q, k, v, 
+        softmax_scale = None, 
+        layout = "BSND"
+        ):
+    assert HAS_NPU, "torch_npu is not avaliable"
+    softmax_scale = q.shape[-1] ** (-0.5)
+    block_out, block_lse = torch_npu.npu_fused_infer_attention_score(q, k, v, 
+                                                num_heads = q.shape[-2], 
+                                                input_layout = layout,  
+                                                scale = softmax_scale, 
+                                                softmax_lse_flag = True,
+                                                pre_tokens=65535, 
+                                                next_tokens=65535)
+    return block_out, block_lse.squeeze(dim=-1)
