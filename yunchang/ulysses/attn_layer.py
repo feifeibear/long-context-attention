@@ -45,9 +45,6 @@ class UlyssesAttention(torch.nn.Module):
             device = torch.device("npu")
         except:
             device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-            gpu_name = torch.cuda.get_device_name(device)
-            if "Turing" in gpu_name or "Tesla" in gpu_name or "T4" in gpu_name:
-                self.attn_type = AttnType.TORCH
         self.attn_fn = select_flash_attn_impl(self.attn_type, stage="fwd-bwd")
 
     def forward(

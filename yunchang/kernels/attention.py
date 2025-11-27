@@ -54,7 +54,7 @@ def pytorch_attn_forward(
     return_softmax=False,
     op_type="flash",
 ):
-    assert op_type in ["flash", "efficient"], f"Invalid op_type: {op_type}"
+    assert op_type in ["flash", "efficient", "math", "cudnn"], f"Invalid op_type: {op_type}"
     """
     q shape (bs, seqlen, nhead, hs)
     k shape (bs, seqlen, nhead, hs)
@@ -84,6 +84,50 @@ def pytorch_attn_forward(
             is_causal=causal,
             scale=softmax_scale,
         )[:2]
+    elif op_type == "math":
+        # Use PyTorch's scaled_dot_product_attention with MATH backend
+        if hasattr(torch.nn.attention, 'sdpa_kernel'):
+            with torch.nn.attention.sdpa_kernel(backends=[torch.nn.attention.SDPBackend.MATH]):
+                out = torch.nn.functional.scaled_dot_product_attention(
+                    q, k, v,
+                    attn_mask=None,
+                    dropout_p=dropout_p,
+                    is_causal=causal,
+                    scale=softmax_scale,
+                )
+        else:
+            # Fallback for older PyTorch versions
+            out = torch.nn.functional.scaled_dot_product_attention(
+                q, k, v,
+                attn_mask=None,
+                dropout_p=dropout_p,
+                is_causal=causal,
+                scale=softmax_scale,
+            )
+        # For math backend, LSE is not available, use zeros as fallback
+        lse = torch.zeros(q.shape[0], q.shape[1], q.shape[2], dtype=q.dtype, device=q.device)
+    elif op_type == "cudnn":
+        # Use PyTorch's scaled_dot_product_attention with CUDNN backend
+        if hasattr(torch.nn.attention, 'sdpa_kernel'):
+            with torch.nn.attention.sdpa_kernel(backends=[torch.nn.attention.SDPBackend.CUDNN_ATTENTION]):
+                out = torch.nn.functional.scaled_dot_product_attention(
+                    q, k, v,
+                    attn_mask=None,
+                    dropout_p=dropout_p,
+                    is_causal=causal,
+                    scale=softmax_scale,
+                )
+        else:
+            # Fallback for older PyTorch versions
+            out = torch.nn.functional.scaled_dot_product_attention(
+                q, k, v,
+                attn_mask=None,
+                dropout_p=dropout_p,
+                is_causal=causal,
+                scale=softmax_scale,
+            )
+        # For cudnn backend, LSE is not available, use zeros as fallback
+        lse = torch.zeros(q.shape[0], q.shape[1], q.shape[2], dtype=q.dtype, device=q.device)
     else:
         raise ValueError(f"Invalid op_type: {op_type}")
     
@@ -112,7 +156,7 @@ def pytorch_attn_backward(
     *args,
     **kwargs,
 ):
-    raise RuntimeError("Not implemented backward for AttnType.TORCH")
+    raise RuntimeError("Not implemented backward for PyTorch attention types")
     # TODO(optim): use pytorch _scaled_dot_product_efficient_attention_backward
     # Use efficient attention backward
     # https://github.com/pytorch/pytorch/blob/main/tools/autograd/derivatives.yaml#L2874

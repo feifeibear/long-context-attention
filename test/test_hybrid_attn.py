@@ -45,10 +45,13 @@ def parse_args():
     parser.add_argument(
         "--attn_impl",
         type=str,
-        default="torch",
+        default="torch_flash",
         choices=[
             "aiter",
-            "torch",
+            "torch_math",
+            "torch_flash",
+            "torch_efficient",
+            "torch_cudnn",
             "fa",
             "fa3",
             "flashinfer",
@@ -59,7 +62,7 @@ def parse_args():
             "sage_fp16_triton",
             "sage_auto",
         ],
-        help="attention implementation type (default: torch)",
+        help="attention implementation type (default: torch_flash)",
     )
     parser.add_argument(
         "--sparse_sage_l1",
@@ -227,7 +230,10 @@ if __name__ == "__main__":
     # Map argument to AttnType enum
     attn_impl_map = {
         "aiter": AttnType.AITER,
-        "torch": AttnType.TORCH,
+        "torch_math": AttnType.TORCH_MATH,
+        "torch_flash": AttnType.TORCH_FLASH,
+        "torch_efficient": AttnType.TORCH_EFFICIENT,
+        "torch_cudnn": AttnType.TORCH_CUDNN,
         "fa": AttnType.FA,
         "fa3": AttnType.FA3,
         "flashinfer": AttnType.FLASHINFER,

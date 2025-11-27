@@ -41,7 +41,10 @@ class AttnType(Enum):
     FA = "fa"
     FA3 = "fa3"
     FLASHINFER = "flashinfer"
-    TORCH = "torch"
+    TORCH_MATH = "torch_math"
+    TORCH_FLASH = "torch_flash"
+    TORCH_EFFICIENT = "torch_efficient"
+    TORCH_CUDNN = "torch_cudnn"
     SAGE_AUTO = "sage_auto"
     SAGE_FP16 = "sage_fp16"
     SAGE_FP16_TRITON = "sage_fp16_triton"
@@ -128,15 +131,47 @@ def select_flash_attn_impl(
         else:
             raise ValueError(f"Unknown stage: {stage}")
 
-    elif impl_type == AttnType.TORCH:
+    elif impl_type == AttnType.TORCH_MATH:
         if stage == "fwd-only":
-            return pytorch_attn_forward
+            return partial(pytorch_attn_forward, op_type="math")
         elif stage == "bwd-only":
             return pytorch_attn_backward
         elif stage == "fwd-bwd":
-            from yunchang.ring.ring_pytorch_attn import pytorch_attn_func
+            from yunchang.ring.ring_pytorch_attn import ring_pytorch_attn_func
+            return ring_pytorch_attn_func
+        else:
+            raise ValueError(f"Unknown stage: {stage}")
 
-            return pytorch_attn_func
+    elif impl_type == AttnType.TORCH_FLASH:
+        if stage == "fwd-only":
+            return partial(pytorch_attn_forward, op_type="flash")
+        elif stage == "bwd-only":
+            return pytorch_attn_backward
+        elif stage == "fwd-bwd":
+            from yunchang.ring.ring_pytorch_attn import ring_pytorch_attn_func
+            return ring_pytorch_attn_func
+        else:
+            raise ValueError(f"Unknown stage: {stage}")
+
+    elif impl_type == AttnType.TORCH_EFFICIENT:
+        if stage == "fwd-only":
+            return partial(pytorch_attn_forward, op_type="efficient")
+        elif stage == "bwd-only":
+            return pytorch_attn_backward
+        elif stage == "fwd-bwd":
+            from yunchang.ring.ring_pytorch_attn import ring_pytorch_attn_func
+            return ring_pytorch_attn_func
+        else:
+            raise ValueError(f"Unknown stage: {stage}")
+
+    elif impl_type == AttnType.TORCH_CUDNN:
+        if stage == "fwd-only":
+            return partial(pytorch_attn_forward, op_type="cudnn")
+        elif stage == "bwd-only":
+            return pytorch_attn_backward
+        elif stage == "fwd-bwd":
+            from yunchang.ring.ring_pytorch_attn import ring_pytorch_attn_func
+            return ring_pytorch_attn_func
         else:
             raise ValueError(f"Unknown stage: {stage}")
 
