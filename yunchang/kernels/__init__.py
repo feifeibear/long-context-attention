@@ -2,6 +2,7 @@ from functools import partial
 
 import torch
 from .attention import (
+    flash_attn_forward_aiter,
     flash_attn_forward,
     flash_attn_backward,
     flash_attn3_func_forward,
@@ -15,9 +16,11 @@ from .attention import (
 from enum import Enum, auto
 
 from yunchang.globals import (
+    HAS_AITER,
     HAS_FLASH_ATTN,
     HAS_SAGE_ATTENTION,
     HAS_SPARSE_SAGE_ATTENTION,
+    HAS_NPU,
 )
 
 if HAS_FLASH_ATTN:
@@ -29,8 +32,12 @@ if HAS_SAGE_ATTENTION:
 if HAS_SPARSE_SAGE_ATTENTION:
     from spas_sage_attn.autotune import SparseAttentionMeansim
 
+if HAS_NPU:
+    from torch_npu import npu_fused_infer_attention_score
+
 
 class AttnType(Enum):
+    AITER = "aiter"
     FA = "fa"
     FA3 = "fa3"
     FLASHINFER = "flashinfer"
@@ -41,6 +48,7 @@ class AttnType(Enum):
     SAGE_FP8 = "sage_fp8"
     SAGE_FP8_SM90 = "sage_fp8_sm90"
     SPARSE_SAGE = "sparse_sage"
+    NPU = 'npu'
 
     @classmethod
     def from_string(cls, s: str):
@@ -53,7 +61,17 @@ class AttnType(Enum):
 def select_flash_attn_impl(
     impl_type: AttnType, stage: str = "fwd-bwd", attn_processor: torch.nn.Module = None
 ):
-    if impl_type == AttnType.FA:
+    if impl_type == AttnType.AITER:
+        if stage == "fwd-only":
+            return flash_attn_forward_aiter
+        elif stage == "bwd-only":
+            raise ValueError("Aiter does not support bwd-only stage.")
+        elif stage == "fwd-bwd":
+            raise ValueError("Aiter does not support fwd-bwd stage.")
+        else:
+            raise ValueError(f"Unknown stage: {stage}")
+
+    elif impl_type == AttnType.FA:
         if stage == "fwd-only":
             return flash_attn_forward
         elif stage == "bwd-only":
@@ -226,6 +244,13 @@ def select_flash_attn_impl(
             return fn
         else:
             raise ValueError(f"Unknown/Unsupported stage: {stage}")
+
+    elif impl_type == AttnType.NPU:
+        if not HAS_NPU:
+            raise ImportError("torch_npu is not available!")
+        else:
+            return npu_fused_infer_attention_score
+            
     elif attn_processor is not None:
         return attn_processor
     else:

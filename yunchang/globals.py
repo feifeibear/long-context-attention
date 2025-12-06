@@ -110,6 +110,13 @@ except ImportError:
     HAS_FLASHINFER = False
 
 try:
+    import aiter
+    from aiter import flash_attn_func as flash_attn_func_aiter
+    HAS_AITER = True
+except ImportError:
+    HAS_AITER = False
+
+try:
     import sageattention
     HAS_SAGE_ATTENTION = True
 except ImportError:
@@ -121,3 +128,8 @@ try:
 except ImportError:
     HAS_SPARSE_SAGE_ATTENTION = False
 
+try:
+    import torch_npu
+    HAS_NPU = True
+except ImportError:
+    HAS_NPU = False

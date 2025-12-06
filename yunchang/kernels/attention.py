@@ -1,11 +1,29 @@
-from typing import Optional, Tuple
-from yunchang.globals import HAS_FLASH_ATTN, HAS_FLASH_ATTN_HOPPER, HAS_FLASHINFER
 import math
+from typing import Optional, Tuple
+
 import torch
+_scaled_dot_product_flash_attention = torch.ops.aten._scaled_dot_product_flash_attention
+_scaled_dot_product_efficient_attention = torch.ops.aten._scaled_dot_product_efficient_attention
+
+# Apply Moore Threads PyTorch Patches. It will not interfere CUDA setup if you are
+# not running in Moore Threads's environment.
+try:
+    import torch_musa
+    _scaled_dot_product_flash_attention = torch.ops.aten._scaled_dot_product_attention_flash_musa
+    # The efficient operator hasn't been implemented yet
+    _scaled_dot_product_efficient_attention = None
+except ModuleNotFoundError:
+    pass
+
+from yunchang.globals import HAS_FLASH_ATTN, HAS_FLASH_ATTN_HOPPER, HAS_FLASHINFER, HAS_AITER, HAS_NPU
+
+if HAS_AITER:
+    import aiter
+    from aiter import flash_attn_func as flash_attn_func_aiter
+
 if HAS_FLASH_ATTN:
     import flash_attn
     from flash_attn.flash_attn_interface import _flash_attn_forward, _flash_attn_backward
-
 
 if HAS_FLASH_ATTN_HOPPER:
     from flash_attn_interface import _flash_attn_forward as flash_attn_forward_hopper
@@ -20,12 +38,8 @@ if HAS_FLASHINFER:
     from flashinfer.prefill import single_prefill_with_kv_cache
     _LOG2_E = math.log2(math.e)
 
-import torch.nn.functional as F
-
-
-import torch
-aten = torch.ops.aten
-
+if HAS_NPU:
+    import torch_npu
 
 def pytorch_attn_forward(
     q: torch.Tensor,
@@ -51,7 +65,7 @@ def pytorch_attn_forward(
     v = v.transpose(1, 2)
 
     if op_type == "flash":
-        out, lse = aten._scaled_dot_product_flash_attention(
+        out, lse = _scaled_dot_product_flash_attention(
             q,
             k,
             v,
@@ -60,7 +74,7 @@ def pytorch_attn_forward(
             scale=softmax_scale,
         )[:2]
     elif op_type == "efficient":
-        out, lse = aten._scaled_dot_product_efficient_attention(
+        out, lse = _scaled_dot_product_efficient_attention(
             q,
             k,
             v,
@@ -196,9 +210,43 @@ def flash_attn3_func_forward(q, k, v, dropout_p, softmax_scale, causal, window_s
     assert HAS_FLASH_ATTN_HOPPER
     # current signature of flash_attn_forward_hopper:
     # (q, k, v, softmax_scale, causal, window_size, descale_q=None, descale_k=None, descale_v=None, gqa_parallel=False)
-    out, q, k, v, out_padded, softmax_lse, S_dmask = flash_attn_forward_hopper(
-        q, k, v, softmax_scale, causal, window_size
-    )
+
+    out, softmax_lse, *unused = flash_attn_forward_hopper(
+                    q=q,
+                    k=k,
+                    v=v,
+                    k_new=None,
+                    v_new=None,
+                    qv=None,
+                    out=None,
+                    cu_seqlens_q=None,
+                    cu_seqlens_k=None,
+                    cu_seqlens_k_new=None,
+                    seqused_q=None,
+                    seqused_k=None,
+                    max_seqlen_q=None,
+                    max_seqlen_k=None,
+                    page_table=None,
+                    kv_batch_idx=None,
+                    leftpad_k=None,
+                    rotary_cos=None,
+                    rotary_sin=None,
+                    seqlens_rotary=None,
+                    q_descale=None,
+                    k_descale=None,
+                    v_descale=None,
+                    softmax_scale=softmax_scale,
+                    causal=False,
+                    window_size=(-1, -1),
+                    attention_chunk=0,
+                    softcap=0.0,
+                    rotary_interleaved=True,
+                    scheduler_metadata=None,
+                    num_splits=0,
+                    pack_gqa=None,
+                    sm_margin=0,
+                )
+    
     return out, softmax_lse
 
 def flash_attn3_func_backward(dout, q, k, v, out, softmax_lse, 
@@ -215,14 +263,46 @@ def flash_attn3_func_backward(dout, q, k, v, out, softmax_lse,
         v,
         out,
         softmax_lse,
-        block_dq_buffer,
-        block_dk_buffer,
-        block_dv_buffer,
-        softmax_scale,
-        bwd_causal,
-        window_size,
-        deterministic,
+        cu_seqlens_q=None,
+        cu_seqlens_k=None,
+        sequed_q=None,
+        sequed_k=None,
+        max_seqlen_q=None,
+        max_seqlen_k=None,
+        dq=block_dq_buffer,
+        dk=block_dk_buffer,
+        dv=block_dv_buffer,
+        softmax_scale=softmax_scale,
+        causal=False,
+        window_size=(-1, -1),
+        softcap=0.0,
+        deterministic=False,
+        sm_margin=0,
     )
+
+def flash_attn_forward_aiter(q, k, v, 
+    dropout_p = 0.0, 
+    softmax_scale = None, 
+    causal=False, 
+    window_size=(-1, -1), 
+    softcap=None, 
+    alibi_slopes=None, 
+    return_softmax=False
+):
+    assert HAS_AITER, "Aiter is not available"
+    block_out, block_lse = flash_attn_func_aiter(
+        q,
+        k,
+        v,
+        dropout_p = dropout_p,
+        softmax_scale = softmax_scale,
+        causal = causal,
+        window_size=window_size,
+        alibi_slopes = alibi_slopes,
+        return_lse=True,
+    )
+
+    return block_out, block_lse
 
 def flashinfer_attn_forward(
     q: torch.Tensor,
@@ -283,3 +363,18 @@ def flashinfer_attn_backbward(
     return_softmax: bool = False,
 ) -> Tuple[torch.Tensor, torch.Tensor]:
     raise RuntimeError("Not implemented backward for AttnType.FLASHINFER")
+
+def npu_attn_forward(q, k, v, 
+        softmax_scale = None, 
+        layout = "BSND"
+        ):
+    assert HAS_NPU, "torch_npu is not avaliable"
+    softmax_scale = q.shape[-1] ** (-0.5)
+    block_out, block_lse = torch_npu.npu_fused_infer_attention_score(q, k, v, 
+                                                num_heads = q.shape[-2], 
+                                                input_layout = layout,  
+                                                scale = softmax_scale, 
+                                                softmax_lse_flag = True,
+                                                pre_tokens=65535, 
+                                                next_tokens=65535)
+    return block_out, block_lse.squeeze(dim=-1)
