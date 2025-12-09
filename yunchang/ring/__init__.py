@@ -33,3 +33,7 @@ from .ring_flashinfer_attn import (
     ring_flashinfer_attn_kvpacked_func,
     ring_flashinfer_attn_qkvpacked_func,
 )
+
+from .ring_npu_flash_attn import (
+    ring_npu_flash_attn_func,
+)

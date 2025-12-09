@@ -6,4 +6,4 @@ export MASTER_ADDR=127.0.0.1
 export MASTER_PORT=21289
 export HCCL_IF_BASE_PORT=64199
 
-torchrun  --master_port=29600 --nproc_per_node 4 test/test_ulysses_attn_npu.py
+torchrun  --master_port=29600 --nproc_per_node 4 test/test_hybrid_attn_npu.py --use_bwd
