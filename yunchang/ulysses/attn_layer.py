@@ -94,10 +94,9 @@ class UlyssesAttention(torch.nn.Module):
                 q,
                 k,
                 v,
-                num_heads = q.shape[-2], 
+                head_num = q.shape[-2], 
                 input_layout = "BSND",  
                 scale = softmax_scale, 
-                softmax_lse_flag = True,
                 pre_tokens=65535, 
                 next_tokens=65535,
             )

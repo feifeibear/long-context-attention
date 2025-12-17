@@ -11,6 +11,8 @@ from .attention import (
     pytorch_attn_backward,
     flashinfer_attn_forward,
     flashinfer_attn_backbward,
+    npu_fused_attn_forward,
+    npu_fused_attn_backward,
     HAS_FLASH_ATTN_HOPPER,
 )
 from enum import Enum, auto
@@ -31,9 +33,6 @@ if HAS_SAGE_ATTENTION:
 
 if HAS_SPARSE_SAGE_ATTENTION:
     from spas_sage_attn.autotune import SparseAttentionMeansim
-
-if HAS_NPU:
-    from torch_npu import npu_fused_infer_attention_score
 
 
 class AttnType(Enum):
@@ -246,10 +245,14 @@ def select_flash_attn_impl(
             raise ValueError(f"Unknown/Unsupported stage: {stage}")
 
     elif impl_type == AttnType.NPU:
-        if not HAS_NPU:
-            raise ImportError("torch_npu is not available!")
+        if stage == "fwd-only":
+            return npu_fused_attn_forward
+        elif stage == "bwd-only":
+            return npu_fused_attn_backward
+        elif stage == "fwd-bwd":
+            return npu_fused_attn_forward
         else:
-            return npu_fused_infer_attention_score
+            raise ValueError(f"Unknown stage: {stage}")
             
     elif attn_processor is not None:
         return attn_processor

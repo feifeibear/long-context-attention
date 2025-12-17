@@ -119,11 +119,10 @@ if __name__ == "__main__":
     # reference, a local flash attn
 
     softmax_scale = q.shape[-1] ** (-0.5)
-    out_ref = torch_npu.npu_fused_infer_attention_score(q, k, v, 
-                                                num_heads = q.shape[-2], 
+    out_ref = torch_npu.npu_fusion_attention_v2(q, k, v, 
+                                                head_num = q.shape[-2], 
                                                 input_layout = "BSND",  
                                                 scale = softmax_scale, 
-                                                softmax_lse_flag = True,
                                                 pre_tokens=65535, 
                                                 next_tokens=65535)[0]
 
@@ -142,15 +141,3 @@ if __name__ == "__main__":
 
     log("out", local_out, rank0_only=True)
     log("out diff", local_out_ref - local_out)
-
-    # local_dq_ref = q.grad.chunk(world_size, dim=1)[rank]
-    # log("load_dq", local_q.grad)
-    # log("dq diff", local_dq_ref - local_q.grad)
-
-    # local_dk_ref = k.grad.chunk(world_size, dim=1)[rank]
-    # log("load_dk", local_k.grad)
-    # log("dk diff", local_dk_ref - local_k.grad)
-
-    # local_dv_ref = v.grad.chunk(world_size, dim=1)[rank]
-    # log("load_dk", local_v.grad)
-    # log("dv diff", local_dv_ref - local_v.grad)

@@ -56,4 +56,5 @@ EXTRACT_FUNC_DICT = {
     "zigzag": zigzag_extract_local,
     "basic_pytorch": basic_extract_local,
     "basic_flashinfer": basic_extract_local,
+    "basic_npu": basic_extract_local,
 }
