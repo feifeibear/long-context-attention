@@ -16,7 +16,7 @@ classifiers = [
     "License :: OSI Approved :: Apache Software License",
     "Operating System :: OS Independent",
 ]
-dependencies = []
+dependencies = ["torch>=2.3.0"]
 
 [project.optional-dependencies]
 flash = ["flash-attn>=2.6.0"]
