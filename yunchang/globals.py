@@ -31,7 +31,7 @@ def set_seq_parallel_pg(
 
     assert (
         world_size % sp_degree == 0
-    ), f"world_size {world_size} % sp_degree {sp_ulysses_degree} == 0"
+    ), f"world_size {world_size} % sp_degree {sp_degree} != 0"
 
     num_ulysses_pgs = sp_ring_degree  # world_size // sp_ulysses_degree
     num_ring_pgs = sp_ulysses_degree  # world_size // sp_ring_degree
