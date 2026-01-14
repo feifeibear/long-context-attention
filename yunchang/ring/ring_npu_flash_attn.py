@@ -60,7 +60,7 @@ def ring_npu_flash_attn_forward(
                 input_layout,
                 softmax_scale
             )
-            global_softmax_max, global_softmax_max, global_softmax_sum = update_npu_out(
+            global_attention_out, global_softmax_max, global_softmax_sum = update_npu_out(
                 attention_out, softmax_max, softmax_sum,
                 global_attention_out, global_softmax_max, global_softmax_sum
             )
