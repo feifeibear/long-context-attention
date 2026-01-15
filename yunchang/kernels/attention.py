@@ -408,28 +408,50 @@ def flashinfer_attn_backbward(
 ) -> Tuple[torch.Tensor, torch.Tensor]:
     raise RuntimeError("Not implemented backward for AttnType.FLASHINFER")
 
-def npu_fused_attn_forward(q, k, v, 
-        head_num = None, 
-        input_layout = "BSND",  
-        scale = None, 
-        pre_tokens=65535, 
-        next_tokens=65535
-        ):
-    assert HAS_NPU, "torch_npu is not avaliable"
-    if scale is None:
-        scale = q.shape[-1] ** -0.5
-    attention_out, softmax_max, softmax_sum,_,_,_,_ = torch_npu.npu_fusion_attention_v2(q, k, v, 
-                                                head_num = head_num, 
-                                                input_layout = input_layout,  
-                                                scale = scale, 
-                                                pre_tokens=pre_tokens, 
-                                                next_tokens=next_tokens)
-    lse = torch.logsumexp(attention_out, dim=-1)
-    # print(f"lse shape is: {lse.shape}, softmax_sum shape is: {softmax_sum.shape}, softmax shape is: {softmax_max.shape}")
-    return attention_out, softmax_max, softmax_sum, scale
 
-def npu_fused_attn_backward(q,k,v, grad_attention_out, head_num=None, input_layout="BSND",softmax_max=None, softmax_sum=None, attention_in=None, scale_value=None):
+def npu_fused_attn_forward(q, k, v,
+        head_num=None,
+        input_layout="BSND",
+        scale=None,
+        pre_tokens=65535,
+        next_tokens=65535
+):
     assert HAS_NPU, "torch_npu is not avaliable"
-    head_num = q.shape[-2]
-    dq, dk, dv, _,_,_ = torch_npu.npu_fusion_attention_grad_v2(q, k, v,grad_attention_out,head_num, input_layout,softmax_max=softmax_max, softmax_sum=softmax_sum, attention_in=attention_in, scale_value=scale_value)
+    attention_out, softmax_max, softmax_sum, _, _, _, _ = torch_npu.npu_fusion_attention_v2(
+        q,
+        k,
+        v,
+        head_num=head_num,
+        input_layout=input_layout,
+        scale=scale,
+        pre_tokens=pre_tokens,
+        next_tokens=next_tokens
+    )
+    # lse = torch.logsumexp(attention_out, dim=-1)
+    # print(f"lse shape is: {lse.shape}, softmax_sum shape is: {softmax_sum.shape}, softmax shape is: {softmax_max.shape}")
+    return attention_out, softmax_max, softmax_sum
+
+
+def npu_fused_attn_backward(q, k, v,
+        grad_attention_out,
+        head_num=None,
+        input_layout="BSND",
+        softmax_max=None,
+        softmax_sum=None,
+        attention_in=None,
+        scale_value=None
+):
+    assert HAS_NPU, "torch_npu is not avaliable"
+    dq, dk, dv, _, _, _ = torch_npu.npu_fusion_attention_grad_v2(
+        q,
+        k,
+        v,
+        grad_attention_out,
+        head_num,
+        input_layout,
+        softmax_max=softmax_max,
+        softmax_sum=softmax_sum,
+        attention_in=attention_in,
+        scale_value=scale_value
+    )
     return dq, dk, dv

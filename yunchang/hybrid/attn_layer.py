@@ -122,7 +122,11 @@ class LongContextAttention(torch.nn.Module):
                     self.ring_pg,
                     query_layer,
                     key_layer,
-                    value_layer
+                    value_layer,
+                    softmax_scale=softmax_scale,
+                    causal=causal,
+                    attn_type=self.attn_type,
+                    attn_processor=self.attn_processor,
                 )
             else:
                 out = self.ring_attn_fn(

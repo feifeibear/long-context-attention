@@ -1,10 +1,11 @@
 import torch
 import torch.distributed as dist
-from .utils import RingComm, update_out_and_lse
+from .utils import RingComm, update_out_and_lse, update_npu_out
 from yunchang.kernels.attention import (
     npu_fused_attn_forward,
     npu_fused_attn_backward,
 )
+from yunchang.kernels import select_flash_attn_impl, AttnType
 from datetime import datetime
 
 
@@ -13,16 +14,28 @@ def ring_npu_flash_attn_forward(
     q: torch.Tensor,
     k: torch.Tensor,
     v: torch.Tensor,
-    head_num: int=None,
-    input_layout: str="BSND"
+    softmax_scale: float = None,
+    head_num: int = None,
+    input_layout: str = "BSND",
+    causal: bool = False,
+    attn_type: AttnType = AttnType.NPU,
+    attn_processor=None
 ):
     comm = RingComm(process_group)
     # print(f"{datetime.now()} current device is: {torch.cuda.current_device()}, ring_npu_flash_attn_forward")
     # 单卡场景直接计算
     if comm.world_size == 1:
-        return npu_fused_attn_forward(q, k, v, head_num, input_layout)
+        return npu_fused_attn_forward(
+            q,
+            k,
+            v,
+            head_num,
+            input_layout,
+            softmax_scale
+        )
     
-    attention_out,softmax_max, softmax_sum, scale_value = None,None,None,None
+    attention_out, softmax_max, softmax_sum = None, None, None
+    global_attention_out, global_softmax_max, global_softmax_sum = None, None, None
 
     next_k, next_v = None, None
 
@@ -36,9 +49,21 @@ def ring_npu_flash_attn_forward(
             comm.commit()
 
         # 当前step计算（仅当step <= 当前rank时处理本地kv）
-        if step <= comm.rank:
+        if not causal or step <= comm.rank:
             # print(f"{datetime.now()} current device is: {torch.cuda.current_device()},ring_npu_flash_attn_forward calculation: {step}")
-            attention_out, softmax_max, softmax_sum, scale_value = npu_fused_attn_forward(q, k, v, head_num, input_layout)
+            fn = select_flash_attn_impl(attn_type, stage="fwd-only", attn_processor=attn_processor)
+            attention_out, softmax_max, softmax_sum = fn(
+                q,
+                k,
+                v,
+                head_num,
+                input_layout,
+                softmax_scale
+            )
+            global_attention_out, global_softmax_max, global_softmax_sum = update_npu_out(
+                attention_out, softmax_max, softmax_sum,
+                global_attention_out, global_softmax_max, global_softmax_sum
+            )
         
         # 非最后一步：等待通信完成，更新kv
         if step + 1 != comm.world_size:
@@ -46,11 +71,24 @@ def ring_npu_flash_attn_forward(
             # print(f"{datetime.now()} current device is: {torch.cuda.current_device()},ring_npu_flash_attn_forward wait: {step}")
             k = next_k
             v = next_v
-    return attention_out, softmax_max, softmax_sum, scale_value
+    return global_attention_out, global_softmax_max, global_softmax_sum
 
 
 def ring_npu_flash_attn_backward(
-    process_group,q, k, v, grad_attention_out, head_num=None, input_layout="BSND", softmax_max=None,softmax_sum=None,attention_in=None, scale_value=None):
+    process_group,
+    q,
+    k,
+    v,
+    grad_attention_out,
+    head_num=None,
+    input_layout="BSND",
+    softmax_max=None,
+    softmax_sum=None,
+    attention_in=None,
+    scale_value=None,
+    causal=False,
+    attn_type=AttnType.NPU
+):
     kv_comm = RingComm(process_group)
     d_kv_comm = RingComm(process_group)
     # print(f"{datetime.now()} current device is: {torch.cuda.current_device()}, ring_npu_flash_attn_backward")
@@ -71,9 +109,20 @@ def ring_npu_flash_attn_backward(
             kv_comm.commit()
 
         # 2. 计算当前step的梯度
-        if step <= kv_comm.rank:
-            grad_query, grad_key, grad_value = npu_fused_attn_backward(
-                q, k, v, grad_attention_out, head_num, input_layout, softmax_max=softmax_max, softmax_sum=softmax_sum, attention_in=attention_in, scale_value=scale_value)
+        if step <= kv_comm.rank or not causal:
+            fn = select_flash_attn_impl(attn_type, stage="bwd-only")
+            grad_query, grad_key, grad_value = fn(
+                q,
+                k,
+                v,
+                grad_attention_out,
+                head_num,
+                input_layout,
+                softmax_max=softmax_max,
+                softmax_sum=softmax_sum,
+                attention_in=attention_in,
+                scale_value=scale_value
+            )
             # print(f"{datetime.now()} current device is: {torch.cuda.current_device()},ring_npu_flash_attn_backward calculation: {step}")
             # 累加query梯度（每个rank只计算自己的q梯度）
             dq += grad_query.to(torch.float32)
@@ -82,8 +131,8 @@ def ring_npu_flash_attn_backward(
             if step > 0:
                 d_kv_comm.wait()  # 等待上一轮dk/dv通信完成
                 # print(f"{datetime.now()} current device is: {torch.cuda.current_device()},ring_npu_flash_attn_backward d_kv_comm wait: {step}")
-                dk += grad_key.to(torch.float32) + next_dk
-                dv += grad_value.to(torch.float32) + next_dv
+                dk = grad_key.to(torch.float32) + next_dk
+                dv = grad_value.to(torch.float32) + next_dv
             else:
                 # 第一步直接赋值
                 # print(f"{datetime.now()} current device is: {torch.cuda.current_device()},ring_npu_flash_attn_backward dkdv: {step}")
@@ -114,39 +163,84 @@ def ring_npu_flash_attn_backward(
     # print(f"{datetime.now()} current device is: {torch.cuda.current_device()},ring_npu_flash_attn_backward d_kv_comm wait for last: {step}")
     
     # 转换为输入 dtype 并返回
-    return (dq.to(q.dtype), dk.to(q.dtype), dv.to(q.dtype))
+    return dq.to(q.dtype), next_dk.to(q.dtype), next_dv.to(q.dtype)
 
 class RingNpuFlashAttnFunc(torch.autograd.Function):
     @staticmethod
-    def forward(ctx, group, q, k, v, head_num, input_layout="BSND"):
+    def forward(
+        ctx,
+        group,
+        q,
+        k,
+        v,
+        head_num,
+        input_layout="BSND",
+        softmax_scale=None,
+        causal=False,
+        attn_type=AttnType.NPU,
+        attn_processor=None
+    ):
+        if softmax_scale is None:
+            softmax_scale = q.shape[-1] ** -0.5
         # 前向传播逻辑
-        attention_out,softmax_max, softmax_sum, scale = ring_npu_flash_attn_forward(group,q=q, k=k, v=v, head_num=head_num, input_layout=input_layout)
+        attention_out, softmax_max, softmax_sum = ring_npu_flash_attn_forward(
+            group,
+            q=q,
+            k=k,
+            v=v,
+            head_num=head_num,
+            softmax_scale=softmax_scale,
+            input_layout=input_layout,
+            causal=causal,
+            attn_type=attn_type,
+            attn_processor=attn_processor
+        )
         # 保存中间结果，以便在反向传播中使用
-        ctx.save_for_backward(q, k, v, attention_out,softmax_max, softmax_sum)
+        ctx.save_for_backward(q, k, v, attention_out, softmax_max, softmax_sum)
         ctx.head_num = head_num
         ctx.input_layout = input_layout
         ctx.group = group
-        ctx.scale=scale
+        ctx.softmax_scale = softmax_scale
+        ctx.causal = causal
+        ctx.attn_type = attn_type
+        ctx.attn_processor = attn_processor
         
         return attention_out
 
     @staticmethod
     def backward(ctx, grad_attention_out):
         # 获取保存的中间结果
-        q, k, v, attention_out,softmax_max, softmax_sum = ctx.saved_tensors
+        q, k, v, attention_out, softmax_max, softmax_sum = ctx.saved_tensors
         # 反向传播逻辑
         # 这里假设有一个实现反向传播的函数 `npu_fusion_attention_backward`
-        grad_query, grad_key, grad_value = ring_npu_flash_attn_backward(ctx.group,q, k, v, grad_attention_out, 
-            ctx.head_num, ctx.input_layout,softmax_max, softmax_sum, attention_out, ctx.scale)
-        return None, grad_query, grad_key, grad_value,None,None
+        grad_query, grad_key, grad_value = ring_npu_flash_attn_backward(
+            ctx.group,
+            q,
+            k,
+            v,
+            grad_attention_out,
+            ctx.head_num,
+            ctx.input_layout,
+            softmax_max,
+            softmax_sum,
+            attention_out,
+            ctx.softmax_scale,
+            ctx.causal,
+            ctx.attn_type
+        )
+        return None, grad_query, grad_key, grad_value, None, None, None, None, None, None
 
 def ring_npu_flash_attn_func(
     group,
     q: torch.Tensor,
     k: torch.Tensor,
     v: torch.Tensor,
-    head_num: int=None,
-    input_layout: str="BSND"
+    softmax_scale: float = None,
+    head_num: int = None,
+    input_layout: str = "BSND",
+    causal: bool = False,
+    attn_type: AttnType = AttnType.NPU,
+    attn_processor=None
 ):
     head_num = q.shape[-2]
     return RingNpuFlashAttnFunc.apply(
@@ -155,5 +249,9 @@ def ring_npu_flash_attn_func(
         k,
         v,
         head_num,
-        input_layout
+        input_layout,
+        softmax_scale,
+        causal,
+        attn_type,
+        attn_processor
     )
