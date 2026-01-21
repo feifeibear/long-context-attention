@@ -173,7 +173,6 @@ def flash_attn_forward(q, k, v,
     assert HAS_FLASH_ATTN, "FlashAttention is not available"
     if softmax_scale is None:
         softmax_scale = q.shape[-1] ** (-0.5)
-    if flash_attn.__version__ < '2.6.3':
         block_out, _, _, _, _, block_lse, _, _ = _flash_attn_forward(
             q,
             k,
@@ -186,20 +185,6 @@ def flash_attn_forward(q, k, v,
             alibi_slopes=alibi_slopes,
             return_softmax=return_softmax,
         )
-    else:
-        block_out, block_lse, _, _ = _flash_attn_forward(
-            q,
-            k,
-            v,
-            dropout_p = dropout_p,
-            softmax_scale = softmax_scale,
-            causal=causal,
-            window_size_left=window_size[0],
-            window_size_right=window_size[1],
-            softcap=softcap,
-            alibi_slopes=alibi_slopes,
-            return_softmax=return_softmax,
-        )
     return block_out, block_lse
 
 def flash_attn_backward(dout, q, k, v, out, softmax_lse, block_dq_buffer, block_dk_buffer, block_dv_buffer, dropout_p, softmax_scale, 
@@ -207,47 +192,26 @@ def flash_attn_backward(dout, q, k, v, out, softmax_lse, block_dq_buffer, block_
     if softmax_scale is None:
         softmax_scale = q.shape[-1] ** (-0.5)
     assert HAS_FLASH_ATTN
-    if flash_attn.__version__ < '2.6.3':
-        _flash_attn_backward(
-            dout,
-            q,
-            k,
-            v,
-            out,
-            softmax_lse,
-            block_dq_buffer,
-            block_dk_buffer,
-            block_dv_buffer,
-            dropout_p,
-            softmax_scale,
-            bwd_causal,
-            window_size,
-            softcap,
-            alibi_slopes,
-            deterministic,
-            rng_state,
-        )
-    else:
-        _flash_attn_backward(
-            dout,
-            q,
-            k,
-            v,
-            out,
-            softmax_lse,
-            block_dq_buffer,
-            block_dk_buffer,
-            block_dv_buffer,
-            dropout_p,
-            softmax_scale,
-            bwd_causal,
-            window_size[0],  # Pass window_size_left
-            window_size[1],  # Pass window_size_right
-            softcap,
-            alibi_slopes,
-            deterministic,
-            rng_state,
-        )
+    _flash_attn_backward(
+        dout,
+        q,
+        k,
+        v,
+        out,
+        softmax_lse,
+        block_dq_buffer,
+        block_dk_buffer,
+        block_dv_buffer,
+        dropout_p,
+        softmax_scale,
+        bwd_causal,
+        window_size,
+        softcap,
+        alibi_slopes,
+        deterministic,
+        rng_state,
+    )
+
     
 
 def flash_attn3_func_forward(q, k, v, dropout_p, softmax_scale, causal, window_size, softcap, alibi_slopes, return_softmax):
