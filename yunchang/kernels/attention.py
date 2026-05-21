@@ -417,7 +417,7 @@ def npu_fused_attn_forward(q, k, v,
         next_tokens=65535
 ):
     assert HAS_NPU, "torch_npu is not avaliable"
-    attention_out, softmax_max, softmax_sum, _, _, _, _ = torch_npu.npu_fusion_attention_v2(
+    attention_out, softmax_max, softmax_sum, *_ = torch_npu.npu_fusion_attention_v2(
         q,
         k,
         v,
@@ -442,7 +442,7 @@ def npu_fused_attn_backward(q, k, v,
         scale_value=None
 ):
     assert HAS_NPU, "torch_npu is not avaliable"
-    dq, dk, dv, _, _, _ = torch_npu.npu_fusion_attention_grad_v2(
+    dq, dk, dv, *_ = torch_npu.npu_fusion_attention_grad_v2(
         q,
         k,
         v,
