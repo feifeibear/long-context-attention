@@ -52,7 +52,7 @@ class LongContextAttention(torch.nn.Module):
             from spas_sage_attn.autotune import SparseAttentionMeansim
             if isinstance(attn_processor, SparseAttentionMeansim) and dist.get_world_size(self.ring_pg) > 1:
                 raise RuntimeError("Sparse Sage attention does not support ring degree > 1.")
-        
+
 
     def forward(
         self,
@@ -117,37 +117,26 @@ class LongContextAttention(torch.nn.Module):
             value_layer = SeqAllToAll4D.apply(
                 self.ulysses_pg, value, self.scatter_idx, self.gather_idx, self.use_sync
             )
-            if self.attn_type is AttnType.NPU:
-                out = self.ring_attn_fn(
-                    self.ring_pg,
-                    query_layer,
-                    key_layer,
-                    value_layer,
-                    softmax_scale=softmax_scale,
-                    causal=causal,
-                    attn_type=self.attn_type,
-                    attn_processor=self.attn_processor,
-                )
-            else:
-                out = self.ring_attn_fn(
-                    query_layer,
-                    key_layer,
-                    value_layer,
-                    dropout_p=dropout_p,
-                    softmax_scale=softmax_scale,
-                    causal=causal,
-                    window_size=window_size,
-                    softcap=softcap,
-                    alibi_slopes=alibi_slopes,
-                    deterministic=deterministic,
-                    return_attn_probs=return_attn_probs,
-                    group=self.ring_pg,
-                    attn_type=self.attn_type,
-                    attn_processor=self.attn_processor,
-                )
+            out = self.ring_attn_fn(
+                query_layer,
+                key_layer,
+                value_layer,
+                dropout_p=dropout_p,
+                softmax_scale=softmax_scale,
+                causal=causal,
+                window_size=window_size,
+                softcap=softcap,
+                alibi_slopes=alibi_slopes,
+                deterministic=deterministic,
+                return_attn_probs=return_attn_probs,
+                group=self.ring_pg,
+                attn_type=self.attn_type,
+                attn_processor=self.attn_processor,
+            )
 
         if type(out) == tuple:
-            context_layer, _, _ = out
+            # NPU ring implementations also return RNG state metadata.
+            context_layer = out[0]
         else:
             context_layer = out
 
@@ -194,7 +183,7 @@ class LongContextAttentionQKVPacked(torch.nn.Module):
         self.use_sync = use_sync
         self.ring_attn_fn = RING_IMPL_QKVPACKED_DICT[ring_impl_type]
         self.attn_type = attn_type
-        
+
     def forward(
         self,
         qkv,

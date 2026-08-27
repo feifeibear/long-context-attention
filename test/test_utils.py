@@ -1,7 +1,9 @@
-from einops import rearrange, repeat
 import math
+from typing import Optional, Sequence, Tuple
 
 import torch
+import torch.distributed as dist
+from einops import rearrange, repeat
 
 
 # adpated from flash-attention
@@ -128,3 +130,197 @@ def attention_ref(
     if query_padding_mask is not None:
         output.masked_fill_(rearrange(~query_padding_mask, "b s -> b s 1 1"), 0.0)
     return output.to(dtype=dtype_og), attention.to(dtype=dtype_og)
+
+
+def get_causal_mask(
+    q_len: int, kv_len: int, device: torch.device
+) -> torch.Tensor:
+    assert q_len == kv_len
+    return torch.triu(
+        torch.ones(q_len, kv_len, device=device, dtype=torch.bool),
+        diagonal=1,
+    )
+
+
+def _bsnd_attn(
+    query: torch.Tensor,
+    key: torch.Tensor,
+    value: torch.Tensor,
+    softmax_scale: float,
+    causal: bool = False,
+) -> torch.Tensor:
+    dtype = query.dtype
+    # [B, S, N, D] -> [B, N, S, D]
+    # use fp32 as reference
+    q = query.permute(0, 2, 1, 3)
+    k = key.permute(0, 2, 1, 3)
+    v = value.permute(0, 2, 1, 3)
+
+    attn = torch.matmul(
+        q,
+        k.transpose(-1, -2),
+    )
+
+    attn *= softmax_scale
+
+    if causal:
+        q_len = q.size(-2)
+        kv_len = k.size(-2)
+
+        mask = get_causal_mask(
+            q_len,
+            kv_len,
+            query.device,
+        )[None, None, :, :]
+
+        attn = attn.masked_fill(mask, float("-inf"))
+
+    score = torch.softmax(attn, dim=-1)
+
+    out = torch.matmul(score, v)
+
+    return out.to(dtype).permute(0, 2, 1, 3).contiguous()
+
+
+def eager_attn(
+    query: torch.Tensor,
+    key: torch.Tensor,
+    value: torch.Tensor,
+    softmax_scale: float,
+    causal: bool = False,
+    cu_seq_qlen: Optional[torch.Tensor] = None,
+    cu_seq_kv_len: Optional[torch.Tensor] = None,
+    dtype: torch.dtype = torch.bfloat16,
+) -> torch.Tensor:
+    print(f"compared with eager attention ({dtype})")
+    query = query.to(dtype)
+    key = key.to(dtype)
+    value = value.to(dtype)
+
+    if query.ndim == 4:
+        # BSND
+        return _bsnd_attn(
+            query,
+            key,
+            value,
+            softmax_scale,
+            causal,
+        )
+
+    # TND
+    assert query.ndim == 3
+    assert cu_seq_qlen is not None
+    assert cu_seq_kv_len is not None
+
+    assert len(cu_seq_qlen) == len(cu_seq_kv_len)
+    assert cu_seq_qlen[0].item() == 0
+    assert cu_seq_kv_len[0].item() == 0
+
+    outputs = []
+
+    for i in range(len(cu_seq_qlen) - 1):
+
+        qst = int(cu_seq_qlen[i].item())
+        qed = int(cu_seq_qlen[i + 1].item())
+
+        kvst = int(cu_seq_kv_len[i].item())
+        kved = int(cu_seq_kv_len[i + 1].item())
+
+        local_q = query[qst:qed].unsqueeze(0)
+        local_k = key[kvst:kved].unsqueeze(0)
+        local_v = value[kvst:kved].unsqueeze(0)
+
+        local_out = _bsnd_attn(
+            local_q,
+            local_k,
+            local_v,
+            softmax_scale,
+            causal,
+        )
+
+        outputs.append(local_out.squeeze(0))
+
+    return torch.cat(outputs, dim=0)
+
+
+def make_varlen_input(
+    seq_length: Sequence[int],
+    num_heads: int,
+    dim: int,
+    dtype: torch.dtype,
+) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    q = torch.concat(
+        [torch.randn(length, num_heads, dim, dtype=dtype) for length in seq_length]
+    )
+    k = torch.concat(
+        [torch.randn(length, num_heads, dim, dtype=dtype) for length in seq_length]
+    )
+    v = torch.concat(
+        [torch.randn(length, num_heads, dim, dtype=dtype) for length in seq_length]
+    )
+    dout = torch.concat(
+        [torch.randn(length, num_heads, dim, dtype=dtype) for length in seq_length]
+    )
+
+    dist.broadcast(q, src=0)
+    dist.broadcast(k, src=0)
+    dist.broadcast(v, src=0)
+    dist.broadcast(dout, src=0)
+
+    return q, k, v, dout
+
+
+def make_bsnd_input(
+    batch_size: int,
+    seq_length: int,
+    num_heads: int,
+    dim: int,
+    dtype: torch.dtype,
+) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    q = torch.randn(
+        batch_size, seq_length, num_heads, dim, dtype=dtype, requires_grad=True
+    )
+    k = torch.randn(
+        batch_size, seq_length, num_heads, dim, dtype=dtype, requires_grad=True
+    )
+    v = torch.randn(
+        batch_size, seq_length, num_heads, dim, dtype=dtype, requires_grad=True
+    )
+    dout = torch.randn(batch_size, seq_length, num_heads, dim, dtype=dtype)
+
+    dist.broadcast(q, src=0)
+    dist.broadcast(k, src=0)
+    dist.broadcast(v, src=0)
+    dist.broadcast(dout, src=0)
+    return q, k, v, dout
+
+
+def sequential_print(text: str) -> None:
+    world_size = dist.get_world_size()
+    rank = dist.get_rank()
+    for r in range(world_size):
+        if r == rank:
+            print(text)
+        dist.barrier()
+
+
+def assert_close(
+    name: str,
+    actual: torch.Tensor,
+    expected: torch.Tensor,
+    atol: float = 1e-1,
+    rtol: float = 1e-1,
+) -> None:
+    is_close = torch.allclose(actual, expected, atol=atol, rtol=rtol)
+    if dist.is_available() and dist.is_initialized():
+        status = torch.tensor(
+            int(is_close), dtype=torch.int32, device=actual.device
+        )
+        dist.all_reduce(status, op=dist.ReduceOp.MIN)
+        is_close = bool(status.item())
+    if not is_close:
+        diff = (actual - expected).abs()
+        raise AssertionError(
+            f"{name} mismatch: max_abs={diff.max().item()}, "
+            f"mean_abs={diff.mean().item()}, atol={atol}, rtol={rtol}"
+        )

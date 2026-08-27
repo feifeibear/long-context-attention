@@ -157,7 +157,8 @@ class AsyncLongContextAttention(torch.nn.Module):
             )
 
             if type(out) == tuple:
-                context_layer, _, _ = out
+                # NPU ring implementations also return RNG state metadata.
+                context_layer = out[0]
             else:
                 context_layer = out
 
