@@ -3,9 +3,13 @@ from typing import Optional, Tuple
 import torch
 import torch.distributed as dist
 import torch.nn.functional as F
-from einops import rearrange
 
-__all__ = ["update_out_and_lse", "RingComm"]
+__all__ = [
+    "RingComm",
+    "ring_npu_attention_out_update",
+    "update_out_and_lse",
+]
+
 
 @torch.jit.script
 def _update_out_and_lse(
@@ -14,7 +18,7 @@ def _update_out_and_lse(
     block_out: torch.Tensor,
     block_lse: torch.Tensor,
 ) -> Tuple[torch.Tensor, torch.Tensor]:
-    
+
     block_out = block_out.to(torch.float32)
     block_lse = block_lse.transpose(-2, -1).unsqueeze(dim=-1)
 
@@ -51,45 +55,46 @@ def update_out_and_lse(
     return out, lse
 
 
-def update_npu_out(cur_attn_out, cur_softmax_max, cur_softmax_sum, prev_attn_out, prev_softmax_max, prev_softmax_sum, layout="BSND"):
-    assert layout == "BSND", "NPU currently only supports input data in BSND format."
+def ring_npu_attention_out_update(
+    prev_attn_out: Optional[torch.Tensor],
+    prev_softmax_max: Optional[torch.Tensor],
+    prev_softmax_sum: Optional[torch.Tensor],
+    cur_attn_out: torch.Tensor,
+    cur_softmax_max: torch.Tensor,
+    cur_softmax_sum: torch.Tensor,
+) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    # npu fa返回的softmax统计量为B N S 8/T N 8，最后的8仅为了对齐，这里先去除
+    cur_max = cur_softmax_max[..., 0]
+    cur_sum = cur_softmax_sum[..., 0]
     if prev_attn_out is None:
-        return cur_attn_out, cur_softmax_max, cur_softmax_sum
-    attn_h = cur_attn_out.shape[2]
+        # attn out返回值可能为bf、fp等，ring过程转换为float32,提高精度
+        return cur_attn_out.to(torch.float32), cur_max, cur_sum
+    if prev_softmax_max is None or prev_softmax_sum is None:
+        raise RuntimeError("previous softmax statistics are missing")
 
-    # attn_out [b, s, n, d] -> [s, b, h]
-    cur_attn_out = rearrange(cur_attn_out, 'b s n d -> s b (n d)').contiguous()
-    prev_attn_out = rearrange(prev_attn_out, 'b s n d -> s b (n d)').contiguous()
-
-    # update softmax_max
-    origin_dtype = prev_attn_out.dtype
-    softmax_max = torch.maximum(prev_softmax_max, cur_softmax_max)
+    softmax_max = torch.maximum(prev_softmax_max, cur_max)
     prev_scale = torch.exp(prev_softmax_max - softmax_max)
-    cur_scale = torch.exp(cur_softmax_max - softmax_max)
+    cur_scale = torch.exp(cur_max - softmax_max)
 
-    # update softmax_sum
     prev_softmax_sum_scaled = prev_softmax_sum * prev_scale
-    cur_softmax_sum_scaled = cur_softmax_sum * cur_scale
+    cur_softmax_sum_scaled = cur_sum * cur_scale
     softmax_sum = prev_softmax_sum_scaled + cur_softmax_sum_scaled
 
-    # out updating scale
     prev_out_scale = prev_softmax_sum_scaled / softmax_sum
     cur_out_scale = cur_softmax_sum_scaled / softmax_sum
-
-    # out_scale: [b, n, s, 8] -> [s, b, h]
-    n = prev_out_scale.shape[1]
-    h = prev_attn_out.shape[-1]
-    d = h // n
-    prev_out_scale = prev_out_scale[..., 0].unsqueeze(3).repeat(1, 1, 1, d)
-    prev_out_scale = rearrange(prev_out_scale, 'b n s d -> s b (n d)').contiguous()
-    cur_out_scale = cur_out_scale[..., 0].unsqueeze(3).repeat(1, 1, 1, d)
-    cur_out_scale = rearrange(cur_out_scale, 'b n s d -> s b (n d)').contiguous()
-
-    attn_out = prev_attn_out * prev_out_scale + cur_attn_out * cur_out_scale
-    attn_out = attn_out.to(origin_dtype)
-
-    # attn_out: [s, b, h] -> [b, s, n d]
-    attn_out = rearrange(attn_out, 's b (n d) -> b s n d', n=attn_h).contiguous()
+    if cur_attn_out.ndim == 4:
+        # prev_attn_out: b s n d, prev_out_scale: b n s
+        prev_out_scale = prev_out_scale.transpose(1, 2)
+        cur_out_scale = cur_out_scale.transpose(1, 2)
+        attn_out = (
+            prev_attn_out * prev_out_scale.unsqueeze(-1)
+            + cur_attn_out * cur_out_scale.unsqueeze(-1)
+        )
+    else:
+        attn_out = (
+            prev_attn_out * prev_out_scale.unsqueeze(-1)
+            + cur_attn_out * cur_out_scale.unsqueeze(-1)
+        )
     return attn_out, softmax_max, softmax_sum
 
 

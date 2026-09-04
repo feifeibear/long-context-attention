@@ -1,5 +1,6 @@
-import torch
 import os
+
+import torch
 
 
 class Singleton:
@@ -18,6 +19,7 @@ class ProcessGroupSingleton(Singleton):
 
 
 PROCESS_GROUP = ProcessGroupSingleton()
+
 
 def set_seq_parallel_pg(
     sp_ulysses_degree, sp_ring_degree, rank, world_size, use_ulysses_low=True

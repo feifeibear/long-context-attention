@@ -86,31 +86,19 @@ class UlyssesAttention(torch.nn.Module):
         if softmax_scale is None:
             softmax_scale = q.shape[-1] ** -0.5
 
-        if self.attn_type is AttnType.NPU:
-            context_layer = self.attn_fn(
-                q,
-                k,
-                v,
-                head_num = q.shape[-2], 
-                input_layout = "BSND",  
-                scale = softmax_scale, 
-                pre_tokens=65535, 
-                next_tokens=65535,
-            )
-        else:
-            context_layer = self.attn_fn(
-                q,
-                k,
-                v,
-                dropout_p=dropout_p,
-                softmax_scale = softmax_scale,
-                causal=causal,
-                window_size=window_size,
-                softcap=softcap,
-                alibi_slopes=alibi_slopes,
-                deterministic=deterministic,
-                return_attn_probs=return_attn_probs,
-            )
+        context_layer = self.attn_fn(
+            q,
+            k,
+            v,
+            dropout_p=dropout_p,
+            softmax_scale=softmax_scale,
+            causal=causal,
+            window_size=window_size,
+            softcap=softcap,
+            alibi_slopes=alibi_slopes,
+            deterministic=deterministic,
+            return_attn_probs=return_attn_probs,
+        )
 
         if isinstance(context_layer, tuple):
             context_layer = context_layer[0]
@@ -123,4 +111,3 @@ class UlyssesAttention(torch.nn.Module):
 
         # out e.g., [s/p::h]
         return output
-
