@@ -48,6 +48,8 @@ As shown in the figure below, there are three usage methods based on the flash_a
 
 3. For hardware such as NPUs that does not support FA, use torch to implement attention computation. In this case, there is no need to install `flash_attn`, and you should apply `LongContextAttention(ring_impl_type="basic", attn_type=AttnType.TORCH_EFFICIENT)`. *Note: the backward pass is not supported for AttnType.TORCH_EFFICIENT.*
 
+4. For Intel XPU (Xe GPU / BMG), use `sgl-kernel-xpu` which provides `flash_attn_varlen_func` for XPU. Apply `LongContextAttention(ring_impl_type="basic_xpu", attn_type=AttnType.XPU)`. *Note: the backward pass is not supported for AttnType.XPU.*
+
 Option 1: pip install
 
 `pip install flash-attn`
@@ -66,6 +68,8 @@ Option 2: build from local.
 `pip install .`
 
 Install for AMD GPU: [install_amd.md](./docs/install_amd.md)
+
+Install for Intel XPU: [install_xpu.md](./docs/install_xpu.md)
 
 
 ### 2. Usage
@@ -98,6 +102,9 @@ longctx_attn = LongContextAttention(ring_impl_type="zigzag", attn_type=AttnType.
 
 # if you use NPUs, where no flash_attn is supported, you can use the following code.
 # LongContextAttention(ring_impl_type="zigzag", attn_type=AttnType.TORCH_EFFICIENT)
+
+# if you use Intel XPU (BMG/Xe), use sgl-kernel-xpu flash attention (forward-only).
+# LongContextAttention(ring_impl_type="basic_xpu", attn_type=AttnType.XPU)
 
 # extract a local shard for the global Q, K, V.
 local_q = EXTRACT_FUNC_DICT["zigzag"](
@@ -152,6 +159,12 @@ Install FlashInfer from [here](https://docs.flashinfer.ai/installation.html#quic
 
 ```bash
 torchrun --nproc_per_node=4 --master_port=1234 ./test/test_hybrid_attn.py --sp_ulysses_degree 2 --ring_impl_type 'basic_flashinfer' --attn_impl flashinfer
+```
+
+- Intel XPU Test (fwd only, requires `sgl-kernel-xpu`)
+
+```bash
+torchrun --nproc_per_node=4 ./test/test_hybrid_attn_xpu.py --seqlen 2048 --causal
 ```
 
 ### 4. Verified in Megatron-LM

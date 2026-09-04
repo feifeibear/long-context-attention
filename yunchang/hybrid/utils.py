@@ -16,6 +16,7 @@ from yunchang.ring import (
     zigzag_ring_npu_flash_attn_qkvpacked_func,
     zigzag_ring_npu_flash_attn_varlen_func,
     zigzag_ring_npu_flash_attn_varlen_qkvpacked_func,
+    ring_xpu_flash_attn_func,
 )
 
 RING_IMPL_DICT = {
@@ -26,6 +27,7 @@ RING_IMPL_DICT = {
     "basic_flashinfer": ring_flashinfer_attn_func,
     "basic_npu": ring_npu_flash_attn_func,
     "zigzag_npu": zigzag_ring_flash_attn_npu_func,
+    "basic_xpu": ring_xpu_flash_attn_func,
 }
 
 # Varlen ring functions have a different required argument (cu_seqlens), so

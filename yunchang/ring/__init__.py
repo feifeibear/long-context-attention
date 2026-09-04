@@ -50,3 +50,7 @@ from .zigzag_ring_npu_flash_attn_varlen import (
     zigzag_ring_npu_flash_attn_varlen_func,
     zigzag_ring_npu_flash_attn_varlen_qkvpacked_func,
 )
+
+from .ring_xpu_flash_attn import (
+    ring_xpu_flash_attn_func,
+)

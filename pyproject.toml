@@ -20,6 +20,7 @@ dependencies = ["torch>=2.3.0"]
 
 [project.optional-dependencies]
 flash = ["flash-attn>=2.6.0"]
+xpu = ["sglang-kernel-xpu"]
 
 [project.urls]
 "Homepage" = "https://github.com/feifeibear/long-context-attention"
