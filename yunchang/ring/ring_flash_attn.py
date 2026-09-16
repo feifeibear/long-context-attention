@@ -21,6 +21,9 @@ def ring_flash_attn_forward(
 ):
     comm = RingComm(process_group)
 
+    if attn_type == AttnType.SPARSE_SAGE and comm.world_size > 1:
+        raise RuntimeError("Sparse Sage attention does not support ring degree > 1.")
+
     out = None
     lse = None
 
