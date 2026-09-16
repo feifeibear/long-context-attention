@@ -21,6 +21,7 @@ from yunchang.globals import (
     HAS_FLASHINFER,
     HAS_AITER,
     HAS_NPU,
+    HAS_XPU,
 )
 
 if HAS_AITER:
@@ -576,3 +577,58 @@ def npu_fused_attn_backward(
         sparse_mode=sparse_mode,
     )
     return dq, dk, dv
+
+
+def xpu_flash_attn_forward(
+    q: torch.Tensor,
+    k: torch.Tensor,
+    v: torch.Tensor,
+    dropout_p: float = 0.0,
+    softmax_scale: Optional[float] = None,
+    causal: bool = False,
+    window_size: Tuple[int, int] = (-1, -1),
+    softcap: Optional[float] = None,
+    alibi_slopes=None,
+    return_softmax: bool = False,
+) -> Tuple[torch.Tensor, torch.Tensor]:
+    assert HAS_XPU, "sgl_kernel XPU flash attention is not available"
+    from sgl_kernel.flash_attn import flash_attn_varlen_func
+
+    if softmax_scale is None:
+        softmax_scale = q.shape[-1] ** (-0.5)
+
+    # q/k/v: (bs, seqlen, nheads, headdim) -> (bs*seqlen, nheads, headdim)
+    bs, seqlen, nheads, headdim = q.shape
+    q_flat = q.reshape(bs * seqlen, nheads, headdim).contiguous()
+    k_flat = k.reshape(bs * seqlen, nheads, headdim).contiguous()
+    v_flat = v.reshape(bs * seqlen, nheads, headdim).contiguous()
+
+    cu_seqlens = torch.arange(
+        0, (bs + 1) * seqlen, seqlen, dtype=torch.int32, device=q.device
+    )
+
+    out_flat, lse_flat, *rest = flash_attn_varlen_func(
+        q_flat,
+        k_flat,
+        v_flat,
+        cu_seqlens_q=cu_seqlens,
+        cu_seqlens_k=cu_seqlens,
+        max_seqlen_q=seqlen,
+        max_seqlen_k=seqlen,
+        softmax_scale=softmax_scale,
+        causal=causal,
+        window_size=window_size,
+        softcap=softcap if softcap is not None else 0.0,
+        return_softmax_lse=True,
+    )
+
+    # out_flat: (bs*seqlen, nheads, headdim) -> (bs, seqlen, nheads, headdim)
+    out = out_flat.reshape(bs, seqlen, nheads, headdim)
+    # lse_flat: (nheads, bs*seqlen) -> (bs, nheads, seqlen)
+    lse = lse_flat.reshape(nheads, bs, seqlen).permute(1, 0, 2)
+
+    return out, lse
+
+
+def xpu_flash_attn_backward(*args, **kwargs):
+    raise RuntimeError("Backward pass is not supported for XPU flash attention")

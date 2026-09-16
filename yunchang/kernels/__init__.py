@@ -13,6 +13,8 @@ from .attention import (
     flashinfer_attn_backbward,
     npu_fused_attn_forward,
     npu_fused_attn_backward,
+    xpu_flash_attn_forward,
+    xpu_flash_attn_backward,
     HAS_FLASH_ATTN_HOPPER,
 )
 from enum import Enum, auto
@@ -23,6 +25,7 @@ from yunchang.globals import (
     HAS_SAGE_ATTENTION,
     HAS_SPARSE_SAGE_ATTENTION,
     HAS_NPU,
+    HAS_XPU,
 )
 
 if HAS_FLASH_ATTN:
@@ -51,6 +54,7 @@ class AttnType(Enum):
     SAGE_FP8_SM90 = "sage_fp8_sm90"
     SPARSE_SAGE = "sparse_sage"
     NPU = 'npu'
+    XPU = 'xpu'
 
     @classmethod
     def from_string(cls, s: str):
@@ -288,7 +292,19 @@ def select_flash_attn_impl(
             return npu_fused_attn_forward
         else:
             raise ValueError(f"Unknown stage: {stage}")
-            
+
+    elif impl_type == AttnType.XPU:
+        if not HAS_XPU:
+            raise ImportError("sgl_kernel XPU flash attention is not available")
+        if stage == "fwd-only":
+            return xpu_flash_attn_forward
+        elif stage == "bwd-only":
+            return xpu_flash_attn_backward
+        elif stage == "fwd-bwd":
+            raise ValueError("XPU flash attention does not support fwd-bwd stage")
+        else:
+            raise ValueError(f"Unknown stage: {stage}")
+
     elif attn_processor is not None:
         return attn_processor
     else:

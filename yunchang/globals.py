@@ -135,3 +135,12 @@ try:
     HAS_NPU = True
 except ImportError:
     HAS_NPU = False
+
+try:
+    if hasattr(torch, "xpu") and torch.xpu.is_available():
+        from sgl_kernel.flash_attn import flash_attn_varlen_func as _xpu_fa_check  # noqa: F401
+        HAS_XPU = True
+    else:
+        HAS_XPU = False
+except (ImportError, AttributeError):
+    HAS_XPU = False
