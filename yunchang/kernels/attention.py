@@ -1,4 +1,5 @@
 import math
+import re
 from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
 import torch
@@ -31,6 +32,15 @@ if HAS_AITER:
 if HAS_FLASH_ATTN:
     import flash_attn
     from flash_attn.flash_attn_interface import _flash_attn_forward, _flash_attn_backward
+
+
+def _flash_attn_splits_window_size():
+    # flash-attn 2.7.0 replaced `window_size` with `window_size_left` and
+    # `window_size_right`. Compare the version numerically: as strings,
+    # "2.10.0" sorts before "2.6.3".
+    major, minor = re.match(r"(\d+)\.(\d+)", flash_attn.__version__).groups()
+    return (int(major), int(minor)) >= (2, 7)
+
 
 if HAS_FLASH_ATTN_HOPPER:
     from flash_attn_interface import _flash_attn_forward as flash_attn_forward_hopper
@@ -180,7 +190,7 @@ def flash_attn_forward(q, k, v,
     assert HAS_FLASH_ATTN, "FlashAttention is not available"
     if softmax_scale is None:
         softmax_scale = q.shape[-1] ** (-0.5)
-    if flash_attn.__version__ <= '2.6.3':
+    if not _flash_attn_splits_window_size():
         block_out, _, _, _, _, block_lse, _, _ = _flash_attn_forward(
             q,
             k,
@@ -214,7 +224,7 @@ def flash_attn_backward(dout, q, k, v, out, softmax_lse, block_dq_buffer, block_
     if softmax_scale is None:
         softmax_scale = q.shape[-1] ** (-0.5)
     assert HAS_FLASH_ATTN
-    if flash_attn.__version__ <= '2.6.3':
+    if not _flash_attn_splits_window_size():
         _flash_attn_backward(
             dout,
             q,
