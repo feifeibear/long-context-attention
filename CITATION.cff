@@ -1,0 +1,20 @@
+cff-version: 1.2.0
+message: "If your research uses or builds on Unified Sequence Parallelism, please cite the original USP paper below."
+title: "YunChang: Unified Sequence Parallel Attention"
+type: software
+authors:
+  - family-names: Fang
+    given-names: Jiarui
+repository-code: "https://github.com/feifeibear/long-context-attention"
+preferred-citation:
+  type: article
+  title: "USP: A Unified Sequence Parallelism Approach for Long Context Generative AI"
+  authors:
+    - family-names: Fang
+      given-names: Jiarui
+    - family-names: Zhao
+      given-names: Shangchun
+  journal: "arXiv preprint arXiv:2405.07719"
+  year: 2024
+  doi: "10.48550/arXiv.2405.07719"
+  url: "https://arxiv.org/abs/2405.07719"
