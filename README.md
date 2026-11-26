@@ -10,7 +10,25 @@
 This repo provides a sequence parallel approach that synergizes the strengths of two popular distributed attentions, i.e. DeepSpeed-Ulysses-Attention and Ring-Attention, delivering a more general and stronger versatility and better performance. 
 The project is built on [zhuzilin/ring-flash-attention](https://github.com/zhuzilin/ring-flash-attention) and refers to the [DeepSpeed-Ulysses](https://github.com/microsoft/DeepSpeed/blob/master/blogs/deepspeed-ulysses/README.md).
 
-USP has been applied in [NVIDIA/TransformerEngine](https://github.com/NVIDIA/TransformerEngine/blob/54aa12a9a1f166c53a20f17f309adeab5698f5f6/transformer_engine/pytorch/attention.py#L1542) `AttnFuncWithCPAndKVP2P`. You can use it in API `attn_forward_func_with_cp`.
+## USP in the ecosystem
+
+**Unified Sequence Parallelism (USP)**, also called hybrid sequence parallelism or 2D context parallelism, combines Ulysses all-to-all and Ring KV exchange across two orthogonal process-group dimensions. [Fang & Zhao (2024)](https://arxiv.org/abs/2405.07719) described this decomposition, its topology-aware trade-offs, and its interaction with other forms of model parallelism.
+
+📝 **Technical blog:** [From GPUs to TPUs: How Unified Sequence Parallelism Became a Cross-Platform Attention Strategy](./docs/usp-cross-platform.md)
+
+**For research using, comparing against, or building on this unified Ulysses/Ring approach, please cite the original USP paper** ([arXiv:2405.07719](https://arxiv.org/abs/2405.07719), [DOI](https://doi.org/10.48550/arXiv.2405.07719), [BibTeX](#9-cite-us), [CITATION.cff](./CITATION.cff)) along with the appropriate implementation-specific and foundational work.
+
+| Project | Platform / workload | Evidence and relationship to USP |
+| --- | --- | --- |
+| [xDiT](https://github.com/xdit-project/xDiT) | GPU / DiT inference | [Documentation](https://github.com/xdit-project/xDiT/blob/main/docs/methods/usp.md) identifies YunChang as its implementation and cites the USP paper. |
+| [LongVILA (NVIDIA/MIT and collaborators)](https://github.com/NVlabs/VILA/blob/main/longvila/README.md) | GPU / long-video VLM training | [Project acknowledgement](https://github.com/NVlabs/VILA/blob/main/longvila/README.md#acknowledgement) credits YunChang's 2D attention implementation; the [paper](https://arxiv.org/abs/2408.10188) cites USP and LoongTrain. |
+| [EasyContext](https://github.com/jzhang38/EasyContext) | GPU / long-context LLM training | README credits YunChang for its sequence-parallel implementation. |
+| [NVIDIA Transformer Engine](https://docs.nvidia.com/deeplearning/transformer-engine/api/pytorch.html) / [Megatron Core](https://docs.nvidia.com/megatron-core/developer-guide/latest/apidocs/core/core.transformer.transformer_config.html) | GPU / context parallelism | Documents analogous hierarchical all-to-all + ring (`a2a+p2p`) communication; no claim of YunChang code reuse. |
+| [Ascend MindSpeed](https://gitee.com/ascend/MindSpeed/blob/cf7f0092061caef91e17f016b3864639dad5a008/docs/features/hybrid-context-parallel.md) | NPU / training | Hybrid context parallelism documentation explicitly links the USP paper. |
+| [Google MaxText](https://maxtext.readthedocs.io/en/maxtext-v0.2.5/guides/optimization/sharding.html) | TPU / LLM training | Independent JAX/TPU implementation, `context_parallel_strategy=usp`; docs link the original USP paper. See the [November 2026 announcement](https://developers.googleblog.com/announcing-long-context-training-on-tpus-with-maxtext-context-parallelism/). |
+| [Google MaxDiffusion](https://github.com/AI-Hypercomputer/maxdiffusion#whats-new) | TPU / Wan video inference | Documents support for an independent 2D Ring/USP implementation (`ulysses_ring_custom`) since June 2026. |
+
+This is a non-exhaustive, source-backed list. Implementation reuse, independent algorithmic implementations and formal paper citations are distinct; the table does not imply production deployment or uniform performance across hardware. Evidence-linked additions and corrections are welcome.
 
 
 ## Why not apply Ulysses and Ring Attention Individually?
@@ -228,29 +246,29 @@ Only when the batch size (bs) is insufficient for partitioning should one consid
 
 
 
-### 8. Projects apply USP
-I am honored that this repository has contributed to the following projects:
+### 8. Other community project links
 
-1. [xdit-project/xDiT](https://github.com/xdit-project/xDiT)
-2. [NVlabs/VILA](https://github.com/NVlabs/VILA/blob/main/LongVILA.md)
-3. [feifeibear/Odysseus-Transformer](https://github.com/feifeibear/Odysseus-Transformer)
-4. [Ascend/AscendSpeed](https://gitee.com/ascend/AscendSpeed/blob/master/docs/features/hybrid-context-parallel.md)
-5. [jzhang38/EasyContext](https://github.com/jzhang38/EasyContext)
-6. [FlagOpen/FlagScale](https://github.com/FlagOpen/FlagScale/commit/f98ee1e293bd906cc77f512f7a884b2030c10a12)
-7. [zhiyuanhubj/LongRecipe](https://github.com/zhiyuanhubj/LongRecipe)
-8. [NVIDIA/TransformerEngine](https://github.com/NVIDIA/TransformerEngine/blob/54aa12a9a1f166c53a20f17f309adeab5698f5f6/transformer_engine/pytorch/attention.py#L1542)
-9. [xdit-project/mochi-xdit](https://github.com/xdit-project/mochi-xdit)
- 
+See the [ecosystem table above](#usp-in-the-ecosystem) for documented relationships and citations. Other project links from earlier versions of this README are retained here for reference; their exact use of USP or YunChang is not independently classified in the table yet:
+
+- [Odysseus-Transformer](https://github.com/feifeibear/Odysseus-Transformer)
+- [FlagScale](https://github.com/FlagOpen/FlagScale/commit/f98ee1e293bd906cc77f512f7a884b2030c10a12)
+- [LongRecipe](https://github.com/zhiyuanhubj/LongRecipe)
+- [mochi-xdit](https://github.com/xdit-project/mochi-xdit)
+
 ### 9. Cite Us
+
+If USP is relevant to your research, please cite the paper below (including when using an independent implementation of the unified Ulysses/Ring approach). Also cite the underlying Ulysses and Ring Attention papers and any implementation you use, where relevant.
 
 [USP: A Unified Sequence Parallelism Approach for Long Context Generative AI](https://arxiv.org/abs/2405.07719)
 
 ```
 @article{fang2024unified,
-  title={A Unified Sequence Parallelism Approach for Long Context Generative AI},
+  title={USP: A Unified Sequence Parallelism Approach for Long Context Generative AI},
   author={Fang, Jiarui and Zhao, Shangchun},
   journal={arXiv preprint arXiv:2405.07719},
-  year={2024}
+  year={2024},
+  doi={10.48550/arXiv.2405.07719},
+  url={https://arxiv.org/abs/2405.07719}
 }
 
 ```
